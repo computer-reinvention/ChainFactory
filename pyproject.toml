@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "chain-factory"
+version = "0.1.0"
+description = "A CLI utitlity to build LLM chains with ease."
+authors = ["Pankaj Garkoti <garkotipankaj@gmail.com>"]
+readme = "README.md"
+packages = [{include = "chain_factory"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
