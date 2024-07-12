@@ -8,6 +8,7 @@ packages = [{include = "ChainFactory"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
+langchain = "^0.2.7"
 
 
 [build-system]
