@@ -1,19 +1,12 @@
-# Project Name: LLM Chains
+# ChainFactory: Mass manufacture your LLM chains.
 
 ## Overview
 
-ChainFactory is a utility to build LLM chains by just describing the chain in a simple YAML file. The created chains can be exported as Python code and used in your projects as it is.
+ChainFactory is a utility to build LLM chains by just describing the chain in a simple YAML file. The created chains can be exported as Python code and used in your projects as it is. This allows chains that create chains on the fly.
 
 ## Features
 
-- **Dynamic Task Management**: Define and manage sequences of tasks easily.
-- **LLM Integration**: Seamlessly integrate LLMs into each step of the task chain.
-- **Flexibility**: Customize task chains to suit a wide range of applications.
-- **Error Handling**: Robust error handling to ensure smooth execution.
-- **Extensible**: Easily extend the framework to include new tasks or modify existing ones.
-
-## Getting Started
-
+I'm still brainstorming aaaaaaaaaaaaaa
 
 ### Installation
 
