@@ -1,10 +1,10 @@
 [tool.poetry]
 name = "chain-factory"
 version = "0.1.0"
-description = "A CLI utitlity to build LLM chains with ease."
+description = "A CLI utitlity to mass manufacture LLM chains."
 authors = ["Pankaj Garkoti <garkotipankaj@gmail.com>"]
 readme = "README.md"
-packages = [{include = "chain_factory"}]
+packages = [{include = "ChainFactory"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
