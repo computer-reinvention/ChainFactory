@@ -2,11 +2,13 @@
 
 ## Overview
 
-ChainFactory is a utility to build LLM chains by just describing the chain in a simple YAML file. The created chains can be exported as Python code and used in your projects as it is. This allows chains that create chains on the fly.
+`ChainFactory` is a utility to build LLM chains by configuration instead of code. The chains produces this way are reproducible and easy to manage i.e read, edit and share. The created chains can be exported as Python and TypeScript clients and used in your projects without any mod. Additionally, you can pass the YAML configuration to `ChainFactoryEngine` to use them on the fly.
+
+This allows a very interesting pattern where you can create chains on runtime and combine their outputs to do interesting things that are not possible with the standard chains.
 
 ## Features
 
-I'm still brainstorming aaaaaaaaaaaaaa
+Export your chains as Python code and use them as packages in your projects.
 
 ### Installation
 
@@ -29,22 +31,10 @@ I'm still brainstorming aaaaaaaaaaaaaa
 
 TBD
 
-
-## Contributing
-
-We welcome contributions to LLM Chains! Please follow these steps to contribute:
-
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature-branch`).
-3. Make your changes.
-4. Commit your changes (`git commit -m 'Add new feature'`).
-5. Push to the branch (`git push origin feature-branch`).
-6. Open a pull request.
-
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Contact
 
-For questions or feedback, please contact [garkotipankaj@gmail.com](mailto:garkotipankaj@gmail.com)
+For questions or feedback, please contact [garkotipankaj@gmail.com](mailto:garkotipankaj@gmail.com).
