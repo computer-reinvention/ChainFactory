@@ -2,15 +2,15 @@
 
 ## Overview
 
-`ChainFactory` is a utility to build LLM chains by configuration instead of code. The chains produces this way are reproducible and easy to manage i.e read, edit and share. The created chains can be exported as Python and TypeScript clients and used in your projects without any mod. Additionally, you can pass the YAML configuration to `ChainFactoryEngine` to use them on the fly.
+`ChainFactory` is a utility to build LLM chains by configuration instead of code. The chains produces this way are reproducible and easy to manage i.e read, edit and share. The created chains can be exported as Python code and used in your projects without any mod. Additionally, you can pass the YAML configuration to `ChainFactoryEngine` to use them on the fly.
 
-This allows a very interesting pattern where you can create chains on runtime and combine their outputs to do interesting things that are not possible with the standard chains.
+This allows a very interesting pattern where you can create chains during runtime and combine their outputs to do interesting things that are not possible with the standard code defined chains.
 
 ## Features
 
-Export your chains as Python code and use them as packages in your projects.
+TBD
 
-### Installation
+## Installation
 
 1. Clone the repository:
    ```bash
@@ -27,7 +27,7 @@ Export your chains as Python code and use them as packages in your projects.
    export OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
    ```
 
-### Usage
+## Usage
 
 TBD
 

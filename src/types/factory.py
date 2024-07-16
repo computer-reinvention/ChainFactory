@@ -5,9 +5,17 @@ This module defines some of the core types used in the chain factory project.
 from typing import Any, Optional
 
 
+class FactoryDefinitions:
+    """
+    This type is the representation of the `def` section of a chain factory file.
+    """
+
+    pass
+
+
 class FactoryPrompt:
     """
-    This type is the representation of an `prompt` section of a chain factory file.
+    This type is the representation of the `prompt` section of a chain factory file.
     """
 
     pass
@@ -15,7 +23,7 @@ class FactoryPrompt:
 
 class FactoryInput:
     """
-    This type is the representation of an `in` section of a chain factory file.
+    This type is the representation of the `in` section of a chain factory file.
     """
 
     pass
