@@ -1,40 +1,14 @@
 """
-This module defines some of the core types used in the chain factory project.
+This module defines some of the core Factory type representation.
 """
 
 from typing import Any, Optional
-
-
-class FactoryDefinitions:
-    """
-    This type is the representation of the `def` section of a chain factory file.
-    """
-
-    pass
-
-
-class FactoryPrompt:
-    """
-    This type is the representation of the `prompt` section of a chain factory file.
-    """
-
-    pass
-
-
-class FactoryInput:
-    """
-    This type is the representation of the `in` section of a chain factory file.
-    """
-
-    pass
-
-
-class FactoryOutput:
-    """
-    This type is the representation of the `out` section of a chain factory file.
-    """
-
-    pass
+from .components import (
+    FactoryDefinitions,
+    FactoryPrompt,
+    FactoryInput,
+    FactoryOutput,
+)
 
 
 class Factory:
@@ -44,7 +18,10 @@ class Factory:
 
     _source: Optional[str]
     _parsed_source: Optional[Any]
+
+    # Parts of the .fctr file
     extends: Optional["Factory"]
-    in_: Optional[FactoryInput]
-    out: Optional[FactoryOutput]
+    definitions: Optional[FactoryDefinitions]
+    input: Optional[FactoryInput]
+    output: Optional[FactoryOutput]
     prompt: Optional[FactoryPrompt]
