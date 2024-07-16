@@ -1,5 +1,5 @@
 """
-This module defines some of the core Factory type representation.
+This module defines the core `Factory` type representation.
 """
 
 from typing import Any, Optional
@@ -19,7 +19,7 @@ class Factory:
     _source: Optional[str]
     _parsed_source: Optional[Any]
 
-    # Parts of the .fctr file
+    # 1:1 correspondence with the .fctr file sections
     extends: Optional["Factory"]
     definitions: Optional[FactoryDefinitions]
     input: Optional[FactoryInput]
