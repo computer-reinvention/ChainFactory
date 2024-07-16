@@ -27,8 +27,9 @@ class Factory:
         # 1:1 correspondence with the .fctr file sections
         self.extends: Optional["Factory"] = None  # section `extends`
         self.definitions: Optional[FactoryDefinitions] = None  # section `def`
-        self.input: Optional[FactoryInput] = None  # section `in`
-        self.output: Optional[FactoryOutput] = None  # section `out`
+        self.input: Optional[FactoryInput] = (
+            None  # section `in` self.output: Optional[FactoryOutput] = None  # section `out`
+        )
         self.prompt: Optional[FactoryPrompt] = None  # section `prompt`
 
     @classmethod
