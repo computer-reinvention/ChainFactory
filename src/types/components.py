@@ -1,4 +1,6 @@
 import re
+from pprint import pprint
+from typing import Any
 
 from langchain.pydantic_v1 import BaseModel
 
@@ -10,8 +12,20 @@ class FactoryDefinitions:
     This type is the representation of the `def` section of a chain factory file.
     """
 
-    types: dict[str, type]
-    registered_types: list[str]
+    defined_types: dict[str, type]
+    definitions: dict[str, Any]
+
+    def __init__(self, definitions: dict[str, dict]):
+        self.defined_types = {}
+        self.definitions = definitions
+
+        for name, definition in definitions.items():
+            self.defined_types[name] = create_class_from_dict(
+                class_name=name,
+                attributes=definition,
+                base_class=BaseModel,
+                defined_types=self.defined_types,
+            )
 
 
 class FactoryPrompt:
@@ -73,7 +87,7 @@ class FactoryOutput:
     attributes: dict
     _NAME: str = "ChainFactoryOutput"
 
-    def __init__(self, attributes: dict):
+    def __init__(self, attributes: dict, definitions: dict[str, type] = {}):
         """
         Initialize the output class.
         """
@@ -82,4 +96,7 @@ class FactoryOutput:
             class_name=self._NAME,
             attributes=attributes,
             base_class=BaseModel,
+            defined_types=definitions,
         )
+
+        pprint(self._type.__annotations__)

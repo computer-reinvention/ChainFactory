@@ -48,9 +48,14 @@ class Factory:
         source = yaml.safe_load(open(file_path, "r"))
         # ext = source.get("extends")
         # input = source.get("input")
-        # defs = source.get("def")
-
+        defs = source.get("def")
+        output = source.get("out")
         prompt = source["prompt"]
+
+        if defs is not None:
+            factory_defs = FactoryDefinitions(definitions=defs)
+        else:
+            factory_defs = None
 
         if isinstance(prompt, str):
             prompt_template = prompt
@@ -59,18 +64,22 @@ class Factory:
         else:
             raise ValueError("Invalid prompt format.")
 
-        output = source.get("out")
-
         factory_prompt = FactoryPrompt(string=prompt_template)
 
-        if output is None:
-            factory_output = None
+        if output is not None:
+            if not factory_defs:
+                factory_output = FactoryOutput(attributes=output)
+            else:
+                factory_output = FactoryOutput(
+                    attributes=output, definitions=factory_defs.defined_types
+                )
         else:
-            factory_output = FactoryOutput(attributes=output)
+            factory_output = None
 
         return cls(
             source=file_path,
             parsed_source=source,
             prompt=factory_prompt,
             output=factory_output,
+            definitions=factory_defs,
         )
