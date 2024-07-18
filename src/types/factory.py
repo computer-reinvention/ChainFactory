@@ -3,7 +3,7 @@ This module defines the core `Factory` type representation.
 """
 
 from typing import Any, Optional
-from .components import FactoryDefinitions, FactoryPrompt, FactoryInput, FactoryOutput
+from .components import FactoryDefinitions, FactoryPrompt, FactoryOutput
 
 
 class Factory:
@@ -14,7 +14,8 @@ class Factory:
     _source: Optional[str]
     _parsed_source: Optional[Any]
 
-    # 1:1 correspondence with the .fctr file sections extends: Optional["Factory"]
+    # 1:1 correspondence with the .fctr file sections
+    extends: Optional["Factory"]
     definitions: Optional[FactoryDefinitions]
     input: Optional[FactoryInput]
     output: Optional[FactoryOutput]
@@ -27,14 +28,11 @@ class Factory:
         # 1:1 correspondence with the .fctr file sections
         self.extends: Optional["Factory"] = None  # section `extends`
         self.definitions: Optional[FactoryDefinitions] = None  # section `def`
-        self.input: Optional[FactoryInput] = (
-            None  # section `in` self.output: Optional[FactoryOutput] = None  # section `out`
-        )
         self.prompt: Optional[FactoryPrompt] = None  # section `prompt`
 
     @classmethod
-    def from_yaml_file(cls, file_path: str) -> "Factory":
+    def from_file(cls, file_path: str) -> "Factory":
         """
-        Parse the source YAML file into a `Factory` object.
+        Parse the source file into a `Factory` object.
         """
         raise NotImplementedError

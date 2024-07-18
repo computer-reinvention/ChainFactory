@@ -1,11 +1,4 @@
-from pprint import pprint
-from datetime import datetime
 from typing import List, Optional
-
-import yaml
-from langchain.pydantic_v1 import BaseModel
-
-from src.interfaces.engine import ChainFactoryEngine
 
 
 def create_class_from_dict(class_name: str, attributes: dict, base_class=object):
@@ -14,7 +7,7 @@ def create_class_from_dict(class_name: str, attributes: dict, base_class=object)
 
     Args:
         class_name (str): The name of the class to be created.
-        attributes (dict): A dictionary of attributes and their types.
+        attributes (dict): A dictionary of attributes and their strings for their types.
     Returns:
         type: The dynamically created class.
     """
@@ -35,15 +28,3 @@ def create_class_from_dict(class_name: str, attributes: dict, base_class=object)
         class_dict["__annotations__"][attr] = actual_type
 
     return type(class_name, (base_class,), class_dict)
-
-
-if __name__ == "__main__":
-    with open("test.yaml", "r") as f:
-        data = yaml.safe_load(f)
-        pprint(data)
-
-    GeneratedOutputClass = create_class_from_dict(
-        "OutputClass", data["out"], base_class=BaseModel
-    )
-
-    pprint(GeneratedOutputClass.__annotations__)
