@@ -79,7 +79,7 @@ class FactoryOutput:
         """
         self.attributes = attributes
         self._type = create_class_from_dict(
-            class_name=self.NAME,
+            class_name=self._NAME,
             attributes=attributes,
             base_class=BaseModel,
         )
