@@ -71,3 +71,15 @@ class ChainFactoryEngine:
         prompt = ChatPromptTemplate.from_template(factory.prompt.string)
 
         return prompt | model
+
+    @classmethod
+    def from_file(
+        cls,
+        file_path: str,
+        config: ChainFactoryEngineConfig = ChainFactoryEngineConfig(),
+    ) -> "ChainFactoryEngine":
+        """
+        Create a ChainFactoryEngine from a file.
+        """
+        factory = Factory.from_file(file_path)
+        return cls(factory, config)
