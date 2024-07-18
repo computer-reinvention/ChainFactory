@@ -18,7 +18,6 @@ class Factory:
     # 1:1 correspondence with the .fctr file sections
     extends: Optional["Factory"]
     definitions: Optional[FactoryDefinitions]
-    input: Optional[FactoryInput]
     output: Optional[FactoryOutput]
     prompt: Optional[FactoryPrompt]
 
@@ -32,13 +31,13 @@ class Factory:
         prompt: Optional[FactoryPrompt] = None,
     ):
         self._source = source  # the YAML string
-        self._parsed_source = None  # the parsed YAML object / dictionary
+        self._parsed_source = parsed_source  # the parsed YAML object / dictionary
 
         # 1:1 correspondence with the .fctr file sections
-        self.extends: Optional["Factory"] = None  # section `extends`
-        self.definitions: Optional[FactoryDefinitions] = None  # section `def`
-        self.prompt: Optional[FactoryPrompt] = None  # section `prompt`
-        self.output: Optional[FactoryOutput] = None  # section `out`
+        self.extends: Optional["Factory"] = extends  # section `extends`
+        self.definitions: Optional[FactoryDefinitions] = definitions  # section `def`
+        self.prompt: Optional[FactoryPrompt] = prompt  # section `prompt`
+        self.output: Optional[FactoryOutput] = output  # section `out`
 
     @classmethod
     def from_file(cls, file_path: str) -> "Factory":
@@ -50,7 +49,16 @@ class Factory:
         # ext = source.get("extends")
         # input = source.get("input")
         # defs = source.get("def")
-        prompt_template = source["prompt"]["template"]
+
+        prompt = source["prompt"]
+
+        if isinstance(prompt, str):
+            prompt_template = prompt
+        elif isinstance(prompt, dict):
+            prompt_template = source["prompt"]["template"]
+        else:
+            raise ValueError("Invalid prompt format.")
+
         output = source.get("out")
 
         factory_prompt = FactoryPrompt(string=prompt_template)
