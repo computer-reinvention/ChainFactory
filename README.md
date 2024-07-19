@@ -59,7 +59,7 @@ The def section is the part of the .fctr file that defines custom types to be us
 Example Usage:
 ``` yaml
 def:
-	Haiku:
+    Haiku:
         haiku: str
         explanation: str
         topic: str
