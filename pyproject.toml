@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "chainfactory-py"
-version = "0.0.5"
-description = "LLM Chains as Configuration, Not Code"
+version = "0.0.6"
+description = "LLM Chains as Configuration Without Code"
 authors = ["Pankaj Garkoti <garkotipankaj@gmail.com>"]
 readme = "README.md"
 license = "MIT"
