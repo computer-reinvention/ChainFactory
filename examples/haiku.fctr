@@ -1,11 +1,13 @@
+# This is a sample .fctr file for generating haikus using a simple prompt template.
+
+prompt: |
+  Write {num} haiku(s) about {topic}. Use the standard 5-7-5 syllable pattern.
+
 def:
   Haiku:
     haiku: str
     explanation: str
     topic: str
-
-prompt: |
-  Write {num} haiku(s) about {topic}.
 
 out:
   haikus : list[Haiku]

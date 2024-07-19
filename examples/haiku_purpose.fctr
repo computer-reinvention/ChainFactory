@@ -1,8 +1,6 @@
-# This is a sample .fctr file for generating haikus using the in and purpose fields.
+# This is a sample .fctr file for generating haikus without writing a prompt template.
 
-in:
-  num: int
-  topic: str
+purpose: to generate haikus
 
 def:
   Haiku:
@@ -10,7 +8,9 @@ def:
     explanation: str
     topic: str
 
-purpose: to generate haikus
+in:
+  num: int
+  topic: str
 
 out:
   haikus : list[Haiku]
