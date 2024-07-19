@@ -6,9 +6,6 @@
 
 This allows a very interesting pattern where you can create chains during runtime and combine their outputs to do interesting things that are not possible with the standard code defined chains.
 
-## Features
-
-TBD
 
 ## Installation
 
@@ -99,6 +96,60 @@ Example Usage:
 out:
     haikus : list[Haiku] # using the Haiku model defined in the def section
 ```
+
+## Usage
+Combining the above a `.fctr` file for generating haikus will look like this:
+``` yaml
+def:
+	Haiku:
+        haiku: str
+        explanation: str
+        topic: str
+
+prompt: |
+    Write {num} haiku(s) about {topic}
+
+out:
+    haikus : list[Haiku]
+```
+
+The above `.fctr` file can be used to generate haikus by passing the desired input variables to the `ChainFactoryEngine` class.
+
+``` python
+from src.interfaces.engine import ChainFactoryEngine
+
+engine = ChainFactoryEngine.from_file("haiku.fctr")
+
+res = engine({ "topic": "Python", "num": 3 })
+
+for haiku in res.haikus:
+    print(haiku.haiku)
+    print(haiku.explanation)
+    print("\n\n")
+```
+
+The above code prints the following 3 haikus of questionable originality but generating haikus was not the point :)
+
+
+``` txt
+Silent code it weaves,
+Serpentine logic unfolds,
+Errors shed like skin.
+This haiku captures the elegance and efficiency of Python programming, likening it to a snake shedding its skin to symbolize the ease of debugging and refining code.
+
+
+Indentation rules,
+Whitespace guides the coder's hand,
+Python's zen revealed.
+This haiku highlights Python's unique use of indentation and whitespace to structure code, reflecting the language's philosophy of simplicity and readability.
+
+
+Libraries abound,
+Endless tools at your command,
+Python's power grows.
+This haiku emphasizes the vast array of libraries and tools available in Python, showcasing its versatility and the growing strength of its ecosystem.
+```
+
 
 ## Contact
 For questions or feedback, please create an issue or contact [garkotipankaj@gmail.com](mailto:garkotipankaj@gmail.com).

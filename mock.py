@@ -5,15 +5,11 @@ from src.interfaces.engine import ChainFactoryEngine
 
 
 if __name__ == "__main__":
-    engine = ChainFactoryEngine.from_file("chains/extract_datetimes.yaml")
+    haiku_engine = ChainFactoryEngine.from_file("chains/haiku.fctr")
 
-    res = engine(
-        {
-            "current_dt": pendulum.now().to_day_datetime_string(),
-            "text": "########################################\nInitial Email:\nHi Emma,\nCan we schedule a call to talk about our upcoming plans? I'm free (PST):\nAugust 3: 2pm-4pm\nAugust 5: 10am-12pm\nPlease let me know if either of these times work for you.\nBest,\nJames\n########################################\n",
-        }
-    )
+    res = haiku_engine({"topic": "Python", "num": 3})
 
-    print("===========================")
-    pprint(res.dict())
-    print("===========================")
+    for haiku in res.haikus:
+        print(haiku.haiku)
+        print(haiku.explanation)
+        print("\n")

@@ -1,0 +1,11 @@
+def:
+  Haiku:
+    haiku: str
+    explanation: str
+    topic: str
+
+prompt: |
+  Write {num} haiku(s) about {topic}.
+
+out:
+  haikus : list[Haiku]
