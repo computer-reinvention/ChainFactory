@@ -42,8 +42,13 @@ class Factory:
     @classmethod
     def from_file(cls, file_path: str) -> "Factory":
         """
-        Parse the source file into a `Factory` object.
-        Currently only supports the `prompt` and `out` sections. Definitions and extending are not supported. Neither is input and auto prompting.
+        Parse the source .fctr file into a `Factory` object.
+        Extensions are not supported yet.
+
+        Args:
+            file_path (str): The path to the .fctr file.
+        Returns:
+            Factory: The parsed `Factory` object.
         """
         source = yaml.safe_load(open(file_path, "r"))
 
