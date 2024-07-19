@@ -98,10 +98,11 @@ out:
 ```
 
 ## Usage
-Combining the above a `.fctr` file for generating haikus will look like this:
+
+The complete `.fctr` file for generating haikus looks like this: 
 ``` yaml
 def:
-	Haiku:
+    Haiku:
         haiku: str
         explanation: str
         topic: str
@@ -113,8 +114,7 @@ out:
     haikus : list[Haiku]
 ```
 
-The above `.fctr` file can be used to generate haikus by passing the desired input variables to the `ChainFactoryEngine` class.
-
+Here is how you can use the above file to create a chain that generates haikus:
 ``` python
 from src.interfaces.engine import ChainFactoryEngine
 
