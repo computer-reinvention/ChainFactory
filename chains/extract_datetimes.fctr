@@ -1,3 +1,5 @@
+@chainlink: extract_datetimes --
+
 prompt: |
   Current DateTime: {current_dt}
   Instructions:
@@ -30,3 +32,19 @@ def:
 
 out:
   mentions: list[MentionedDateTime]
+
+@chainlink: filter_datetimes ||
+
+prompt: |
+  Instructions:
+    - Given a list of free time slots, filter out slots according to the following criteria:
+		-- Remove any slots that do not fall within normal business hours.
+		-- Remove any slots that are irrelevant when considering the input text.
+
+  Mentioned DateTimes:
+  {mentions}
+
+  Filter out any mentions that are not related to scheduling and calendars. Return a bulleted list of the filtered mentions. Go!
+
+out:
+	filtered_mentions: str
