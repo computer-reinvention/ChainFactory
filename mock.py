@@ -8,6 +8,7 @@ if __name__ == "__main__":
     haiku_engine = ChainFactoryEngine.from_file("chains/haiku.fctr")
 
     res = haiku_engine({"topic": "Python", "num": 3})
+    # res = haiku_engine(topic="LSD", num=2)
 
     for haiku in res.haikus:
         print(haiku.haiku)

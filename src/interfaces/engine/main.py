@@ -33,11 +33,23 @@ class ChainFactoryEngine:
         self.config = config
         self.chain = self._create_chain(factory, config)
 
-    def __call__(self, input: Any) -> Any:
+    def __call__(self, *args, **kwargs) -> Any:
         """
         Call the chain with the given arguments.
         """
-        return self.chain.invoke(input)
+        if len(args) > 1:
+            raise ValueError(
+                "ChainFactoryEngine() only supports one positional argument."
+            )
+        elif len(args) == 1:
+            return self.chain.invoke(args[0])
+        else:
+            if len(kwargs) == 0:
+                raise ValueError(
+                    "ChainFactoryEngine() requires at least one keyword argument or one positional argument."
+                )
+
+            return self.chain.invoke(kwargs)
 
     def _create_chain(
         self,
