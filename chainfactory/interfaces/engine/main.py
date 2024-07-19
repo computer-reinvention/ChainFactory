@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from langchain_core.runnables import RunnableSerializable
 
-from src.types.factory import Factory
+from chainfactory.types.factory import Factory
 
 from langchain.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI

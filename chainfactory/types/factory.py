@@ -4,6 +4,7 @@ This module defines the core `Factory` type representation.
 
 import yaml
 from typing import Any, Optional
+
 from .components import FactoryDefinitions, FactoryPrompt, FactoryOutput, FactoryInput
 
 
@@ -82,7 +83,9 @@ class Factory:
                     "engine_cls must be provided for generating prompt template from purpose."
                 )
 
-            engine = engine_cls.from_file("src/chains/generate_prompt_template.fctr")
+            engine = engine_cls.from_file(
+                "chainfactory/chains/generate_prompt_template.fctr"
+            )
 
             generated_prompt_template = engine(
                 purpose=purpose,

@@ -1,10 +1,11 @@
 [tool.poetry]
-name = "chain-factory"
-version = "0.1.0"
-description = "A CLI utitlity to mass manufacture LLM chains."
+name = "chainfactory-py"
+version = "0.0.5"
+description = "LLM Chains as Configuration, Not Code"
 authors = ["Pankaj Garkoti <garkotipankaj@gmail.com>"]
 readme = "README.md"
-packages = [{include = "ChainFactory"}]
+license = "MIT"
+packages = [{include = "chainfactory"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
@@ -12,8 +13,6 @@ langchain = "^0.2.7"
 pyyaml = "^6.0.1"
 langchain-openai = "^0.1.17"
 langchain-anthropic = "^0.1.20"
-pendulum = "^3.0.0"
-
 
 [build-system]
 requires = ["poetry-core"]

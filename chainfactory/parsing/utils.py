@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 
 
 def create_class_from_dict(

@@ -1,10 +1,9 @@
 import re
-from pprint import pprint
 from typing import Any
 
 from langchain.pydantic_v1 import BaseModel
 
-from src.parsing.utils import create_class_from_dict
+from chainfactory.parsing.utils import create_class_from_dict
 
 
 class FactoryDefinitions:
