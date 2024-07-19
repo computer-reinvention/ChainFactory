@@ -1,4 +1,4 @@
-@chainlink: extract_datetimes --
+@chainlink: extract_datetimes
 
 prompt: |
   Current DateTime: {current_dt}
@@ -33,7 +33,7 @@ def:
 out:
   mentions: list[MentionedDateTime]
 
-@chainlink: filter_datetimes ||
+@chainlink: filter_datetimes || # this is a parallel chainlink the outputs from the previous chain are passed as inputs to this chain parallelly
 
 prompt: |
   Instructions:
@@ -41,10 +41,9 @@ prompt: |
 		-- Remove any slots that do not fall within normal business hours.
 		-- Remove any slots that are irrelevant when considering the input text.
 
-  Mentioned DateTimes:
-  {mentions}
+  Mentioned DateTime: {mentions.element}
 
   Filter out any mentions that are not related to scheduling and calendars. Return a bulleted list of the filtered mentions. Go!
 
 out:
-	filtered_mentions: str
+	filtered: str?
