@@ -1,0 +1,21 @@
+# This internal chain generates a prompt template based on the purpose and input variables.
+prompt: |
+  =============
+  Instructions:
+  =============
+  - Generate a well-formatted prompt template that uses `input_variables` to achieve specified `purpose`.
+
+  ================
+  Input Variables:
+  ================
+  {input_variables}
+
+  =========
+  Purpose:
+  =========
+  {purpose}
+
+  Go!
+
+out:
+  prompt_template: str

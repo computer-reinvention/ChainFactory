@@ -1,0 +1,16 @@
+# This is a sample .fctr file for generating haikus using the in and purpose fields.
+
+in:
+  num: int
+  topic: str
+
+def:
+  Haiku:
+    haiku: str
+    explanation: str
+    topic: str
+
+purpose: to generate haikus
+
+out:
+  haikus : list[Haiku]

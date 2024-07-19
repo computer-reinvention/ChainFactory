@@ -1,3 +1,4 @@
+from pprint import pprint
 from typing import Any, Literal
 from dataclasses import dataclass, field
 
@@ -80,7 +81,7 @@ class ChainFactoryEngine:
         else:
             model = llm.with_structured_output(factory.output._type)
 
-        prompt = ChatPromptTemplate.from_template(factory.prompt.string)
+        prompt = ChatPromptTemplate.from_template(factory.prompt.template)
 
         return prompt | model
 
@@ -93,5 +94,6 @@ class ChainFactoryEngine:
         """
         Create a ChainFactoryEngine from a file.
         """
-        factory = Factory.from_file(file_path)
+        factory = Factory.from_file(file_path, engine_cls=cls)
+
         return cls(factory, config)

@@ -30,7 +30,7 @@ class Factory:
         output: Optional[FactoryOutput] = None,
         prompt: Optional[FactoryPrompt] = None,
     ):
-        self._source = source  # the YAML string
+        self._source = source  # the YAML template
         self._parsed_source = parsed_source  # the parsed YAML object / dictionary
 
         # 1:1 correspondence with the .fctr file sections
@@ -40,7 +40,7 @@ class Factory:
         self.output: Optional[FactoryOutput] = output  # section `out`
 
     @classmethod
-    def from_file(cls, file_path: str) -> "Factory":
+    def from_file(cls, file_path: str, engine_cls: Any | None = None) -> "Factory":
         """
         Parse the source .fctr file into a `Factory` object.
         Extensions are not supported yet.
@@ -66,19 +66,45 @@ class Factory:
                 "purpose": None,
             }
 
+        if prompt and not purpose:
+            purpose = prompt.get("purpose")
+
+        if not prompt and not purpose:
+            raise ValueError("Neither purpose nor a prompt template were provided.")
+
         # factory_extends = None if not extends else Factory(source=extends)
         factory_input = None if not input else FactoryInput(attributes=input)
-        factory_prompt = (
-            None
-            if not prompt
-            else FactoryPrompt(
-                string=prompt.get("template"),
-                purpose=prompt.get("purpose", purpose),
-                input_variables=(
-                    None if not factory_input else factory_input.input_variables
-                ),
+        input_variables = None if not factory_input else factory_input.input_variables
+
+        if purpose:
+            if engine_cls is None:
+                raise ValueError(
+                    "engine_cls must be provided for generating prompt template from purpose."
+                )
+
+            engine = engine_cls.from_file("src/chains/generate_prompt_template.fctr")
+
+            generated_prompt_template = engine(
+                purpose=purpose,
+                input_variables=input_variables,
+            ).prompt_template
+
+            factory_prompt = FactoryPrompt(
+                template=generated_prompt_template,
+                purpose=purpose,
+                input_variables=input_variables,
             )
-        )
+        elif prompt:
+            factory_prompt = FactoryPrompt(
+                template=prompt["template"],
+                purpose=None,
+                input_variables=input_variables,
+            )
+        else:
+            raise ValueError(
+                "prompt / prompt.template or purpose / prompt.purpose must be provided."
+            )
+
         factory_defs = None if not defs else FactoryDefinitions(definitions=defs)
         factory_output = (
             None
