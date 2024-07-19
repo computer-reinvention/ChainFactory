@@ -28,6 +28,18 @@ class FactoryDefinitions:
             )
 
 
+class FactoryInput:
+    """
+    This type is the representation of the `in` section of a chain factory file.
+    """
+
+    attributes: dict
+
+    def __init__(self, attributes: dict):
+        self.attributes = attributes
+        self.input_variables = list(self.attributes.keys())
+
+
 class FactoryPrompt:
     """
     This type is the representation of the `prompt` section of a chain factory file.
@@ -73,7 +85,7 @@ class FactoryPrompt:
 
     def _create_prompt_string(self, input_variables: list[str], purpose: str) -> str:
         """
-        Create a prompt string from the input variables.
+        Create a prompt template from the input variables.
         """
         raise NotImplementedError
 
@@ -87,7 +99,7 @@ class FactoryOutput:
     attributes: dict
     _NAME: str = "ChainFactoryOutput"
 
-    def __init__(self, attributes: dict, definitions: dict[str, type] = {}):
+    def __init__(self, attributes: dict, definitions: dict[str, type] | None = None):
         """
         Initialize the output class.
         """
@@ -98,5 +110,3 @@ class FactoryOutput:
             base_class=BaseModel,
             defined_types=definitions,
         )
-
-        pprint(self._type.__annotations__)

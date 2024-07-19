@@ -5,7 +5,7 @@ def create_class_from_dict(
     class_name: str,
     attributes: dict,
     base_class=object,
-    defined_types: dict[str, type] = {},
+    defined_types: dict[str, type] | None = None,
 ):
     """
     Dynamically create a class from a dictionary of attributes and their types.
@@ -21,8 +21,8 @@ def create_class_from_dict(
     """
     class_dict = {"__annotations__": {}}
 
-    print("attributes", attributes)
-    print("defined_types", defined_types)
+    if not defined_types:
+        defined_types = {}
 
     for attr, attr_type in attributes.items():
         if attr_type.endswith("?"):

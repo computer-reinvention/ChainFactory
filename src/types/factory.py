@@ -4,7 +4,7 @@ This module defines the core `Factory` type representation.
 
 import yaml
 from typing import Any, Optional
-from .components import FactoryDefinitions, FactoryPrompt, FactoryOutput
+from .components import FactoryDefinitions, FactoryPrompt, FactoryOutput, FactoryInput
 
 
 class Factory:
@@ -46,35 +46,43 @@ class Factory:
         Currently only supports the `prompt` and `out` sections. Definitions and extending are not supported. Neither is input and auto prompting.
         """
         source = yaml.safe_load(open(file_path, "r"))
-        # ext = source.get("extends")
-        # input = source.get("input")
+
+        # extends = source.get("extends")
+        input = source.get("in")
+        purpose = source.get("purpose")
+        prompt = source.get("prompt")
         defs = source.get("def")
         output = source.get("out")
-        prompt = source["prompt"]
-
-        if defs is not None:
-            factory_defs = FactoryDefinitions(definitions=defs)
-        else:
-            factory_defs = None
 
         if isinstance(prompt, str):
-            prompt_template = prompt
-        elif isinstance(prompt, dict):
-            prompt_template = source["prompt"]["template"]
-        else:
-            raise ValueError("Invalid prompt format.")
+            prompt = {
+                "type": "template",
+                "template": prompt,
+                "purpose": None,
+            }
 
-        factory_prompt = FactoryPrompt(string=prompt_template)
-
-        if output is not None:
-            if not factory_defs:
-                factory_output = FactoryOutput(attributes=output)
-            else:
-                factory_output = FactoryOutput(
-                    attributes=output, definitions=factory_defs.defined_types
-                )
-        else:
-            factory_output = None
+        # factory_extends = None if not extends else Factory(source=extends)
+        factory_input = None if not input else FactoryInput(attributes=input)
+        factory_prompt = (
+            None
+            if not prompt
+            else FactoryPrompt(
+                string=prompt.get("template"),
+                purpose=prompt.get("purpose", purpose),
+                input_variables=(
+                    None if not factory_input else factory_input.input_variables
+                ),
+            )
+        )
+        factory_defs = None if not defs else FactoryDefinitions(definitions=defs)
+        factory_output = (
+            None
+            if not output
+            else FactoryOutput(
+                attributes=output,
+                definitions=None if not factory_defs else factory_defs.defined_types,
+            )
+        )
 
         return cls(
             source=file_path,
