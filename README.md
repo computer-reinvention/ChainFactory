@@ -18,7 +18,7 @@ This allows a very interesting pattern where you can create chains during runtim
    Or if you are using `poetry` as the package manager the command would be: `poetry add chainfactory-py@latest`
     
 
-2. The setup is not yet tested with `anthropic` API but it should most likely work. If it does not, please create an issue and I will try to fix it. Or if you are feeling adventurous, feel free to contribute with code :). Currently, ChainFactory will not work if the env variables do not contain this env var.
+2. The setup is not yet tested with `anthropic` API but it should most likely work. If it does not, please create an issue and I will try to fix it. Or if you are feeling adventurous, feel free to contribute with code :). Currently, ChainFactory will not work if the env variables do not contain the OpenAI API key.
 
    ```bash
    export OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
