@@ -1,18 +1,22 @@
 [tool.poetry]
 name = "chainfactory-py"
-version = "0.0.6"
-description = "LLM Chains as Configuration Without Code"
+version = "0.0.7"
+description = "Easy Structured LLM Inference with Chains"
 authors = ["Pankaj Garkoti <garkotipankaj@gmail.com>"]
 readme = "README.md"
 license = "MIT"
 packages = [{include = "chainfactory"}]
+include = ["chainfactory/chains/generate_prompt_template.fctr"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-langchain = "^0.2.7"
+langchain = "^0.2.10"
 pyyaml = "^6.0.1"
 langchain-openai = "^0.1.17"
 langchain-anthropic = "^0.1.20"
+tiktoken = "^0.7.0"
+langchain-community = "^0.2.9"
+langchain-experimental = "^0.0.62"
 
 [build-system]
 requires = ["poetry-core"]

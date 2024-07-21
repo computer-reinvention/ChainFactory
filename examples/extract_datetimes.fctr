@@ -33,7 +33,7 @@ def:
 out:
   mentions: list[MentionedDateTime]
 
-@chainlink: filter_datetimes || # this is a parallel chainlink the outputs from the previous chain are passed as inputs to this chain parallelly
+@chainlink: filter_datetimes || # this is a parallel chainlink. this operates parallelly on the outputs from the previous chain. the outputs of the previous chain must be a list or must have a list like attribute.
 
 prompt: |
   Instructions:

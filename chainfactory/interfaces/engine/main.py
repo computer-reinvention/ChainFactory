@@ -88,12 +88,25 @@ class ChainFactoryEngine:
     @classmethod
     def from_file(
         cls,
-        file_path: str,
+        file_path: str | None = None,
         config: ChainFactoryEngineConfig = ChainFactoryEngineConfig(),
     ) -> "ChainFactoryEngine":
         """
         Create a ChainFactoryEngine from a file.
         """
         factory = Factory.from_file(file_path, engine_cls=cls)
+
+        return cls(factory, config)
+
+    @classmethod
+    def from_str(
+        cls,
+        fctr_str: str | None = None,
+        config: ChainFactoryEngineConfig = ChainFactoryEngineConfig(),
+    ) -> "ChainFactoryEngine":
+        """
+        Create a ChainFactoryEngine from a file.
+        """
+        factory = Factory.from_file(file_content=fctr_str, engine_cls=cls)
 
         return cls(factory, config)

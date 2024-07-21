@@ -4,6 +4,7 @@ This module defines the core `Factory` type representation.
 
 import yaml
 from typing import Any, Optional
+import importlib.resources as pkg_resources
 
 from .components import FactoryDefinitions, FactoryPrompt, FactoryOutput, FactoryInput
 
@@ -41,7 +42,12 @@ class Factory:
         self.output: Optional[FactoryOutput] = output  # section `out`
 
     @classmethod
-    def from_file(cls, file_path: str, engine_cls: Any | None = None) -> "Factory":
+    def from_file(
+        cls,
+        file_path: str | None = None,
+        file_content: str | None = None,
+        engine_cls: Any | None = None,
+    ) -> "Factory":
         """
         Parse the source .fctr file into a `Factory` object.
         Extensions are not supported yet.
@@ -51,7 +57,12 @@ class Factory:
         Returns:
             Factory: The parsed `Factory` object.
         """
-        source = yaml.safe_load(open(file_path, "r"))
+        if file_content:
+            source = yaml.safe_load(file_content)
+        elif file_path:
+            source = yaml.safe_load(open(file_path, "r"))
+        else:
+            raise ValueError("Either file_path or file_object must be provided.")
 
         # extends = source.get("extends")
         input = source.get("in")
@@ -83,20 +94,27 @@ class Factory:
                     "engine_cls must be provided for generating prompt template from purpose."
                 )
 
-            engine = engine_cls.from_file(
-                "chainfactory/chains/generate_prompt_template.fctr"
-            )
+            with pkg_resources.open_text(
+                "chainfactory.chains", "generate_prompt_template.fctr"
+            ) as file:
+                file_content = file.read()
 
-            generated_prompt_template = engine(
-                purpose=purpose,
-                input_variables=input_variables,
-            ).prompt_template
+                engine = engine_cls.from_str(file_content)
 
-            factory_prompt = FactoryPrompt(
-                template=generated_prompt_template,
-                purpose=purpose,
-                input_variables=input_variables,
-            )
+                generated_prompt_template = engine(
+                    purpose=purpose,
+                    input_variables=input_variables,
+                ).prompt_template
+
+                print("============== GENERATED PROMPT ==============")
+                print(generated_prompt_template)
+                print("==============================================")
+
+                factory_prompt = FactoryPrompt(
+                    template=generated_prompt_template,
+                    purpose=purpose,
+                    input_variables=input_variables,
+                )
         elif prompt:
             factory_prompt = FactoryPrompt(
                 template=prompt["template"],
