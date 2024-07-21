@@ -2,10 +2,9 @@
 
 ## Overview
 
-`ChainFactory` is a utility to build LLM chains by configuration instead of code. The chains produces this way are reproducible and easy to manage i.e read, edit and share. The created chains can be exported as Python code and used in your projects without any mod. Additionally, you can pass the YAML configuration to `ChainFactoryEngine` to use them on the fly.
+`ChainFactory` is a utility to build LLM chains by configuration instead of code. The chains produces this way are reproducible and easy to manage i.e read, edit and share. The created chains can be exported as Python code and used in your projects without much disruption to rest of the system. Additionally, you can pass the YAML configuration to `ChainFactoryEngine` to execute the engine.
 
-This allows a very interesting pattern where you can create chains during runtime and combine their outputs to do interesting things that are not possible with the standard code defined chains.
-
+**Side Note**: This allows a very interesting pattern where you can create chains during runtime and combine their outputs to do interesting things that are not possible with the standard code defined chains.
 
 ## Installation from PyPI
 1. using `pip` as follows:
@@ -18,7 +17,8 @@ This allows a very interesting pattern where you can create chains during runtim
    Or if you are using `poetry` as the package manager the command would be: `poetry add chainfactory-py@latest`
     
 
-2. The setup is not yet tested with `anthropic` API but it should most likely work. If it does not, please create an issue and I will try to fix it. Or if you are feeling adventurous, feel free to contribute with code :). Currently, ChainFactory will not work if the env variables do not contain the OpenAI API key.
+2. The setup is not yet tested with `anthropic` API but it should most likely work. If it does not, please create an issue and I will try to fix it. Or if you are feeling adventurous, feel free to contribute with code :)
+3. Currently, ChainFactory will not work if the env variables do not contain the OpenAI API key.
 
    ```bash
    export OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
@@ -62,10 +62,10 @@ def:
         topic: str
 ```
 
-The models defined in the `def` section can be used to compose the desired output structure of the chain.
+The models defined in the `def` section can be used with other inbuilt types and other defined models to enforce complex output structures.
 
 ### Prompt
-The prompt template related options can be set under this section. Attributes of the `prompt` section are:
+The prompt template related options can be set under this section. The following fields are defined:
 
 - type: template # can be template, auto. the template is generated automatically based on the purpose of the chain in the auto mode.
 - purpose: null # a string that describes the purpose of the chain. this can be used for auto generating the prompt template.
@@ -108,10 +108,12 @@ On running the chain containing the above definition, this prompt template is ge
 Generate {num} haikus on the topic of {topic}. Each haiku should follow the traditional 5-7-5 syllable structure.
 ```
 
-The benefit of using this approach is not that apparent when we have a small number of inputs. However, when we reach the >5 input variables teritory just defining a 1 line purpose and the input varables is like magic.
+The benefit of using this approach is not that apparent when we have a small number of inputs. However, as the number of input variables goes up, defining the purpose in a single sentence and just listing the inputs is quite helpful and keeps the chain definition clean.
+
+**Side Note**: The generated prompt can be automatically optimized using something like `DSpy` - which would then make this way of defining the chain superior than writing prompts manually for all cases.
 
 ### Out
-The `out` keyword defines part of the .fctr file that defines the output structure of the chain. The `out` section contains attributes for the desired output structure - it can refer to the models defines in the def section to creae more complex outputs. Not defining the out section means that the chain output is to be a single string with no enforced structure.
+The `out` keyword defines the output structure of the chain. You can refer to the models defines in the def section to create complex output structures. If the `out` section is not defined, the chain output is assumed to be a single string with no enforced structure.
 
 Example Usage:
 ``` yaml
@@ -121,7 +123,8 @@ out:
 
 ## Usage
 
-The complete `.fctr` file for generating haikus using a prompt template looks like this: 
+The complete `.fctr` file for generating haikus looks like this: 
+
 ``` yaml
 # file: haiku.fctr
 def:
@@ -137,7 +140,7 @@ out:
     haikus : list[Haiku]
 ```
 
-Executing the above chain can be done as follows:
+Now this chain can be loaded directly into the `ChainFactoryEngine`. This is a driver class which creates the `Factory` from `haiku.fctr` and then uses the `Factory` to create a `LangChain` `RunnableSerializable` chain. An instance of the `ChainFactoryEngine` can be called like a function with the defined input variables as kwargs.
 
 ``` python
 from chainfactory.interfaces import ChainFactoryEngine
