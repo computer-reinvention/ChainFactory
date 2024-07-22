@@ -48,7 +48,8 @@ class ChainFactoryEngine:
             print("Output:")
             pprint(res["output"])
 
-        print("=" * 80)
+        if len(trace) > 0:
+            print("=" * 80)
 
     def __call__(self, *args, **kwargs) -> Any:
         """
