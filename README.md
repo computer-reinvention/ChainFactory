@@ -1,4 +1,4 @@
-# ChainFactory: Mass manufacture your LLM chains.
+# ChainFactory: Mass manufacture your LLM chains (`chainfactory-py 0.0.8`)
 
 ## Overview
 

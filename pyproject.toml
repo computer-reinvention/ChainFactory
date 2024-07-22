@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "chainfactory-py"
-version = "0.0.7"
+version = "0.0.8"
 description = "Easy Structured LLM Inference with Chains"
 authors = ["Pankaj Garkoti <garkotipankaj@gmail.com>"]
 readme = "README.md"
