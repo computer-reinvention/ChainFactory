@@ -1,7 +1,7 @@
-from chainfactory.interfaces.engine import ChainFactoryEngine
+from chainfactory import Engine
 
 if __name__ == "__main__":
-    haiku_engine = ChainFactoryEngine.from_file("examples/haiku_purpose.fctr")
+    haiku_engine = Engine.from_file("examples/haiku_purpose.fctr")
     res = haiku_engine(topic="Language Models", num=3)
 
     for haiku in res.haikus:
