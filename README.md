@@ -25,7 +25,7 @@
    ```
 
 # The ChainFactory Specification
-**Draft 003**
+**Draft 003a**
 
 ## Structure
 A .fctr file is a YAML file with 1 major distinction - it can contain duplicate fields in the top level mapping.
@@ -46,7 +46,9 @@ The typing system takes direct inspiration from Python's type annotations. The o
 
 It is possible to define custom types in the `def` section of the .fctr file. The syntax for typing a field is as follows:
 
-`[name]: [type][?]=[default_value]`
+`[name]: [type][?] = [default_value] % [description]`
+
+The order in which the description and default value are specified is not important.
 
 The `?` symbol right after a type (without spaces) indicates that the field is optional. If a field has a RHS value that is not a valid type, ChainFactory will assume that the field type is `str` and the RHS is a default value.
 
@@ -58,7 +60,7 @@ Example Usage:
 def:
     Haiku:
         haiku: str
-        explanation: str
+        explanation: str % the explanation for the haiku. must be 2 sentences minimum. # passed as field description to the model
         topic: str
 ```
 
