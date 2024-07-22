@@ -2,8 +2,11 @@
 This module defines the core `Factory` type representation.
 """
 
+import uuid
 import yaml
 from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Any, Optional, Literal
 import importlib.resources as pkg_resources
 
 from .components import (
@@ -14,53 +17,58 @@ from .components import (
 )
 
 
-class Factory:
+class ChainFactoryLink:
     """
     This type is the representation of a factory.
     """
 
+    _name: str
     _source: Optional[str]
     _parsed_source: Optional[Any]
+    _link_type: Literal["sequential", "parallel"] = "sequential"
 
     # 1:1 correspondence with the .fctr file sections
-    extends: Optional["Factory"]
     definitions: Optional[FactoryDefinitions]
     output: Optional[FactoryOutput]
     prompt: Optional[FactoryPrompt]
 
     def __init__(
         self,
-        source: str,
+        name: str,
+        source: Optional[str] = None,
         parsed_source: Optional[Any] = None,
-        extends: Optional["Factory"] = None,
         definitions: Optional[FactoryDefinitions] = None,
         output: Optional[FactoryOutput] = None,
         prompt: Optional[FactoryPrompt] = None,
+        link_type: Literal["sequential", "parallel"] = "sequential",
     ):
+        self._name = name
         self._source = source  # the YAML template
         self._parsed_source = parsed_source  # the parsed YAML object / dictionary
 
         # 1:1 correspondence with the .fctr file sections
-        self.extends: Optional["Factory"] = extends  # section `extends`
         self.definitions: Optional[FactoryDefinitions] = definitions  # section `def`
         self.prompt: Optional[FactoryPrompt] = prompt  # section `prompt`
         self.output: Optional[FactoryOutput] = output  # section `out`
+        self._link_type = link_type
 
     @classmethod
     def from_file(
         cls,
+        name: str,
         file_path: str | None = None,
         file_content: str | None = None,
+        link_type: Literal["sequential", "parallel"] = "sequential",
         engine_cls: Any | None = None,
-    ) -> "Factory":
+    ) -> "ChainFactoryLink":
         """
-        Parse the source .fctr file into a `Factory` object.
+        Parse the source .fctr file into a `ChainFactoryLink` object.
         Extensions are not supported yet.
 
         Args:
             file_path (str): The path to the .fctr file.
         Returns:
-            Factory: The parsed `Factory` object.
+            ChainFactoryLink: The parsed `ChainFactoryLink` object.
         """
         if file_content:
             source = yaml.safe_load(file_content)
@@ -69,7 +77,6 @@ class Factory:
         else:
             raise ValueError("Either file_path or file_object must be provided.")
 
-        # extends = source.get("extends")
         input = source.get("in")
         purpose = source.get("purpose")
         prompt = source.get("prompt")
@@ -89,7 +96,6 @@ class Factory:
         if not prompt and not purpose:
             raise ValueError("Neither purpose nor a prompt template were provided.")
 
-        # factory_extends = None if not extends else Factory(source=extends)
         factory_input = None if not input else FactoryInput(attributes=input)
         input_variables = None if not factory_input else factory_input.input_variables
 
@@ -142,9 +148,146 @@ class Factory:
         )
 
         return cls(
+            name=name,
             source=file_path,
             parsed_source=source,
             prompt=factory_prompt,
             output=factory_output,
             definitions=factory_defs,
+            link_type=link_type,
         )
+
+
+@dataclass
+class ChainFactory:
+    """
+    This type is the representation of multiple factories.
+    """
+
+    links: list[ChainFactoryLink]
+
+    @classmethod
+    def from_file(cls, file_path: str, engine_cls: Any | None = None) -> "ChainFactory":
+        """
+        Parse the source .fctr file into a `Factory` object.
+
+        Args:
+            file_path (str): The path to the .fctr file.
+            engine_cls (Any): The engine class to generate the prompt template from purpose.
+
+        Returns:
+            Factory: The parsed `ChainFactory` object.
+        """
+        with open(file_path, "r") as file:
+            content = file.read()
+
+        return cls.from_str(content, engine_cls=engine_cls)
+
+    @classmethod
+    def from_str(cls, content: str, engine_cls: Any | None = None) -> "ChainFactory":
+        """
+        Parse the content of a .fctr file into a `ChainFactory` object.
+
+        Args:
+            content (str): The content of the .fctr file.
+            engine_cls (Any): The engine class to generate the prompt template from purpose.
+
+        Returns:
+            Factory: The parsed `ChainFactory` object.
+        """
+        lines = content.splitlines()
+        parts = {}
+        current_part = None
+
+        if "@chainlink" not in content:
+            return cls(
+                links=[
+                    ChainFactoryLink.from_file(
+                        name="chainlink-0", file_content=content
+                    ),
+                ]
+            )
+
+        for i, line in enumerate(lines):
+            if not line:
+                continue
+
+            if line.startswith("#"):
+                continue
+
+            new_portion_start = line.strip().startswith("@chainlink")
+
+            if not new_portion_start and current_part:
+                parts[current_part]["lines"].append(line)
+                continue
+
+            if line.startswith("  "):
+                line = line.replace("  ", "\t")
+
+            tokens = [token for token in line.strip().split(" ")]
+
+            print(tokens)
+
+            if len(tokens) > 3:
+                raise ValueError(
+                    f"Error on line {i}. Invalid @chainlink definition. Must be of the form `@chainlink <name> <link_type>`."
+                )
+            elif len(tokens) == 3:
+                name = tokens[1]
+                link_type = tokens[2]
+
+                if link_type not in ["sequential", "parallel"]:
+                    raise ValueError(
+                        f"Error on line {i}. Invalid @chainlink definition. Must be of the form `@chainlink [name] [link_type: 'sequential' | 'parallel']."
+                    )
+
+                if name in parts:
+                    raise ValueError(
+                        f"Error on line {i}. Invalid @chainlink definition. Another chainlink with the same name exists."
+                    )
+
+            elif len(tokens) == 2:
+                unknown_token = tokens[1]
+                if unknown_token in ["sequential", "parallel"]:
+                    # assign random name
+                    name = "chainlink-" + str(uuid.uuid4().hex)
+                    link_type = unknown_token
+                else:
+                    name = tokens[1]
+                    link_type = "sequential"
+            else:
+                name = "chainlink-" + str(uuid.uuid4().hex)
+                link_type = "sequential"
+
+            current_part = name
+            parts[name] = {
+                "beginning_line": i,
+                "link_type": link_type,
+                "lines": [],
+            }
+
+        chainlinks = []
+
+        for name, part in parts.items():
+            if not part["lines"]:
+                raise ValueError(
+                    f"Error on line {part['beginning_line']}. Chainlink definition cannot be empty."
+                )
+
+            if part["link_type"] == "parallel":
+                raise NotImplementedError(
+                    f"Error on line {part['beginning_line']}. Parallel chainlinks are not yet supported in ChainFactory 0.0.9."
+                )
+
+            print("Processing chainlink:", name)
+
+            chainlinks.append(
+                ChainFactoryLink.from_file(
+                    name=name,
+                    file_content="\n".join(part["lines"]).replace("\t", "  "),
+                    link_type=part["link_type"],
+                    engine_cls=engine_cls,
+                )
+            )
+
+        return cls(links=chainlinks)

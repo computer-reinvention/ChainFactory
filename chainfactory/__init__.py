@@ -1,5 +1,5 @@
 from .interfaces.engine import ChainFactoryEngine, ChainFactoryEngineConfig
-from .types.factory import Factory
+from .types.factory import ChainFactory
 from .types.components import (
     FactoryDefinitions,
     FactoryPrompt,
@@ -16,7 +16,7 @@ __all__ = [
     "ChainFactoryEngineConfig",
     "Engine",
     "EngineConfig",
-    "Factory",
+    "ChainFactory",
     "FactoryDefinitions",
     "FactoryPrompt",
     "FactoryOutput",
