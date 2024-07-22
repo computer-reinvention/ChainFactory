@@ -6,7 +6,7 @@ from .types.components import (
     FactoryOutput,
     FactoryInput,
 )
-from .parsing.utils import create_class_from_dict
+from .parsing.class_from_dict import create_class_from_dict
 
 Engine = ChainFactoryEngine  # alias
 EngineConfig = ChainFactoryEngineConfig  # alias

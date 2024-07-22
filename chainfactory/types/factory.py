@@ -6,7 +6,12 @@ import yaml
 from typing import Any, Optional
 import importlib.resources as pkg_resources
 
-from .components import FactoryDefinitions, FactoryPrompt, FactoryOutput, FactoryInput
+from .components import (
+    FactoryDefinitions,
+    FactoryPrompt,
+    FactoryOutput,
+    FactoryInput,
+)
 
 
 class Factory:

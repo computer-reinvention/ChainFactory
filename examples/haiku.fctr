@@ -5,9 +5,9 @@ prompt: |
 
 def:
   Haiku:
-    haiku: str
-    explanation: str
-    topic: str
+    haiku: str % The haiku text.
+    explanation: str? % Not required. The explanation of the haiku.
+    topic: str % the topic of the haiku, always return the original topic.
 
 out:
   haikus : list[Haiku]

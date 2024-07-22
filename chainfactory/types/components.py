@@ -1,9 +1,11 @@
 import re
+import pprint
 from typing import Any
 
 from langchain.pydantic_v1 import BaseModel
+from langchain_core.pydantic_v1 import Field
 
-from chainfactory.parsing.utils import create_class_from_dict
+from ..parsing.class_from_dict import create_class_from_dict
 
 
 class FactoryDefinitions:
@@ -24,6 +26,7 @@ class FactoryDefinitions:
                 attributes=definition,
                 base_class=BaseModel,
                 defined_types=self.defined_types,
+                default_value_class=Field,
             )
 
 
@@ -89,4 +92,6 @@ class FactoryOutput:
             attributes=attributes,
             base_class=BaseModel,
             defined_types=definitions,
+            default_value_class=Field,
         )
+        pprint.pprint(self._type.__annotations__)
