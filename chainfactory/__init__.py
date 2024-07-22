@@ -1,4 +1,4 @@
-from .interfaces.engine import ChainFactoryEngine
+from .interfaces.engine import ChainFactoryEngine, ChainFactoryEngineConfig
 from .types.factory import Factory
 from .types.components import (
     FactoryDefinitions,
@@ -8,15 +8,18 @@ from .types.components import (
 )
 from .parsing.utils import create_class_from_dict
 
-Engine = ChainFactoryEngine  # alias for easier import
+Engine = ChainFactoryEngine  # alias
+EngineConfig = ChainFactoryEngineConfig  # alias
 
 __all__ = [
     "ChainFactoryEngine",
+    "ChainFactoryEngineConfig",
+    "Engine",
+    "EngineConfig",
     "Factory",
     "FactoryDefinitions",
     "FactoryPrompt",
     "FactoryOutput",
     "FactoryInput",
-    "Engine",
     "create_class_from_dict",
 ]
