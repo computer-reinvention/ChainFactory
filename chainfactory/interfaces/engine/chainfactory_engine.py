@@ -3,6 +3,7 @@ import traceback
 from pprint import pprint
 from typing import Any, Literal
 from dataclasses import dataclass, field
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from langchain.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -23,6 +24,7 @@ class ChainFactoryEngineConfig:
     provider: Literal["openai", "anthropic"] = "openai"
     max_tokens: int = 1024
     model_kwargs: dict = field(default_factory=dict)
+    max_parallel_chains: int = 10
 
 
 class ChainFactoryEngine:
@@ -89,45 +91,198 @@ class ChainFactoryEngine:
 
         return trace[-1]["output"]
 
+    def _execute_parallel_chain(self, previous: dict, current: dict) -> list:
+        """
+        Execute a parallel chain.
+        """
+        chain: RunnableSerializable = current["chain"]
+        link: ChainFactoryLink = current["link"]
+        previous_output = previous["output"]
+
+        matching_vars = []
+        matching_list_vars = []
+
+        if not previous_output:
+            raise ValueError(f"Error: output from {previous['name']} is None.")
+
+        if not link.prompt:
+            raise ValueError(f"link.prompt cannot be None for chain {link._name}")
+
+        if not link.prompt.input_variables:
+            raise ValueError(
+                f"unable to determine input_variables for chain {link._name}"
+            )
+
+        for var in link.prompt.input_variables:
+            if var in previous_output:
+                matching_vars.append(var)
+
+            if "element" in var:
+                varsplit = var.split("$")
+                if varsplit[0] == "element":
+                    raise ValueError(
+                        f"Field address cannot start with 'element' in {var}."
+                    )
+
+                if varsplit[0] not in previous_output:
+                    raise ValueError(
+                        f"The iterable field {varsplit[0]} is not present in the previous chain's output."
+                    )
+
+                keys = []
+                subkey_mode = False
+                for v in varsplit:
+                    if subkey_mode:
+                        keys.append(v)
+
+                    if v == "element":
+                        subkey_mode = True
+                        continue
+
+                if len(keys) > 0:
+                    iterable_len = len(previous_output[varsplit[0]])
+
+                    if len(matching_list_vars) > 0:
+                        last_iterable_len = len(
+                            previous_output[matching_list_vars[-1]["parent"]]
+                        )
+
+                        if iterable_len != last_iterable_len:
+                            raise ValueError(
+                                f"All the iterable fields must have the same length. {var} has {iterable_len} elements and {matching_list_vars[-1]['var']} has {last_iterable_len} elements."
+                            )
+
+                matching_list_vars.append(
+                    {
+                        "var": var,
+                        "varsplit": varsplit,
+                        "parent": varsplit[0],
+                        "keys": keys,
+                    }
+                )
+
+        if len(matching_list_vars) == 0:
+            raise ValueError(
+                f"No iterable field found in output from chain {previous['name']} - the succeeding parallel chain {current['name']} cannot be executed."
+            )
+
+        current_inputs = []
+        iterable_len = len(previous_output[matching_list_vars[-1]["parent"]])
+
+        for i in range(iterable_len):
+            current_input = {}
+            for var in matching_vars:
+                current_input[var] = previous_output[var]
+
+            for var in matching_list_vars:
+                element = previous_output[var["parent"]][i]
+
+                if len(var["keys"]) == 0:
+                    current_input[var["var"]] = element
+                    continue
+
+                for key in var["keys"]:
+                    if not element:
+                        current_input[var["var"]] = None
+                        break
+
+                    element = element.get(key)
+
+                if element:
+                    current_input[var["var"]] = element
+                    continue
+
+            current_inputs.append(current_input)
+
+        print("current_inputs:", current_inputs)
+
+        # execute the chains in parallel, preserving the order of the inputs
+        with ThreadPoolExecutor(self.config.max_parallel_chains) as executor:
+            futures = []
+            results = []
+            for input in current_inputs:
+                future = executor.submit(chain.invoke, input)
+                futures.append(future)
+
+            for future in as_completed(futures):
+                output = future.result()
+                results.append(output)
+
+            return results
+
+    def _execute_sequential_chain(self, previous: dict, current: dict):
+        """
+        Execute a sequential chain.
+        """
+        chain: RunnableSerializable = current["chain"]
+        link: ChainFactoryLink = current["link"]
+        output = previous["output"]
+
+        input = {k: v for k, v in output.items() if k in link.prompt.input_variables}
+
+        if not input:
+            raise ValueError(
+                f"Piping failed. No matching input variables found for linking chains {previous['name']} -> {current['name']}."
+            )
+
+        return chain.invoke(input)
+
     def _execute_chains(self, initial_input: dict) -> list[dict]:
         """
-        Execute the chains, while piping the outputs in successive chains.
+        Execute the chains, while piping the outputs to successive chains.
         """
         execution_trace = []
         previous_output = None
         previous_chain_name = None
+        previous_chain = None
+        previous_link = None
+
         for name, data in self.chains.items():
             chain: RunnableSerializable = data["chain"]
             link: ChainFactoryLink = data["link"]
 
-            if previous_output:
-                input = {
-                    k: v
-                    for k, v in previous_output.dict().items()
-                    if k in link.prompt.input_variables
-                }
-                if len(input) == 0:
-                    raise ValueError(
-                        f"Piping failed. No input variable match found for {previous_chain_name} -> {name}."
-                    )
-            else:
-                input = initial_input
+            if not previous_output:
+                previous_output = initial_input
+
+            previous = {
+                "name": previous_chain_name,
+                "output": previous_output,
+                "link": previous_link,
+                "chain": previous_chain,
+            }
+
+            current = {
+                "name": name,
+                "output": None,
+                "link": link,
+                "chain": chain,
+            }
 
             t1 = time.time()
-            output = chain.invoke(input)
+            match link._link_type:
+                case "sequential":
+                    output = self._execute_sequential_chain(previous, current)
+                case "parallel":
+                    output = self._execute_parallel_chain(previous, current)
             t2 = time.time()
 
             execution_trace.append(
                 {
                     "name": name,
-                    "input": input,
+                    "type": link._link_type,
+                    "input": previous_output,
                     "output": output,
                     "execution_time": t2 - t1,
                 }
             )
 
+            if not isinstance(output, list):
+                output = output.dict()
+
             previous_output = output
             previous_chain_name = name
+            previous_chain = chain
+            previous_link = link
 
         return execution_trace
 
@@ -186,5 +341,18 @@ class ChainFactoryEngine:
         Create a ChainFactoryEngine from a file.
         """
         factory = ChainFactory.from_file(file_path, engine_cls=cls)
+
+        return cls(factory, config)
+
+    @classmethod
+    def from_str(
+        cls,
+        content: str,
+        config: ChainFactoryEngineConfig = ChainFactoryEngineConfig(),
+    ) -> "ChainFactoryEngine":
+        """
+        Create a ChainFactoryEngine from a file.
+        """
+        factory = ChainFactory.from_str(content, engine_cls=cls)
 
         return cls(factory, config)

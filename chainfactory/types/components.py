@@ -60,8 +60,21 @@ class FactoryPrompt:
         if not template:
             raise ValueError("Either template or input_variables must be provided.")
 
+        self.purpose = purpose
         self.template = template
-        self.input_variables = self._extract_input_variables(template)
+        self.input_variables = []
+
+        if not input_variables:
+            input_variables = self._extract_input_variables(template)
+
+        for var in input_variables:
+            if "." in var:
+                original = var
+                cleaned = var.replace(".", "$")
+                self.input_variables.append(cleaned)
+                self.template = self.template.replace(original, cleaned)
+            else:
+                self.input_variables.append(var)
 
     def _extract_input_variables(self, template: str) -> list[str]:
         """
