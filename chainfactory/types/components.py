@@ -10,7 +10,7 @@ from ..parsing.class_from_dict import create_class_from_dict
 
 class FactoryDefinitions:
     """
-    This type is the representation of the `def` section of a chain factory file.
+    This type is the representation of the `def` section of a chain factory file. It contains defined types.
     """
 
     defined_types: dict[str, type]
@@ -32,7 +32,7 @@ class FactoryDefinitions:
 
 class FactoryInput:
     """
-    This type is the representation of the `in` section of a chain factory file.
+    This type is the representation of the `in` section of a chain factory file. It lists the input variables and their annotations.
     """
 
     attributes: dict

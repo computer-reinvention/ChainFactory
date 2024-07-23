@@ -162,6 +162,11 @@ class ChainFactoryEngine:
             else:
                 model = llm.with_structured_output(link.output._type)
 
+            if not link.prompt:
+                raise ValueError(
+                    "ChainFactoryLink.prompt cannot be None at this point."
+                )
+
             prompt = ChatPromptTemplate.from_template(link.prompt.template)
 
             runnables[link._name] = {
@@ -181,18 +186,5 @@ class ChainFactoryEngine:
         Create a ChainFactoryEngine from a file.
         """
         factory = ChainFactory.from_file(file_path, engine_cls=cls)
-
-        return cls(factory, config)
-
-    @classmethod
-    def from_str(
-        cls,
-        fctr_str: str | None = None,
-        config: ChainFactoryEngineConfig = ChainFactoryEngineConfig(),
-    ) -> "ChainFactoryEngine":
-        """
-        Create a ChainFactoryEngine from a file.
-        """
-        factory = Factory.from_file(file_content=fctr_str, engine_cls=cls)
 
         return cls(factory, config)
