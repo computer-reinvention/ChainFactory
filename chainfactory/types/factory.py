@@ -236,9 +236,9 @@ class ChainFactory:
                 name = tokens[1]
                 link_type = tokens[2]
 
-                if link_type not in ["sequential", "parallel"]:
+                if link_type not in ["sequential", "parallel", "--", "||"]:
                     raise ValueError(
-                        f"Error on line {i}. Invalid @chainlink definition. Must be of the form `@chainlink [name] [link_type: 'sequential' | 'parallel']."
+                        f"Error on line {i}. Invalid @chainlink definition. Must be of the form `@chainlink [name] [link_type: 'sequential' | '--' | 'parallel' | '||']."
                     )
 
                 if name in parts:
@@ -248,7 +248,7 @@ class ChainFactory:
 
             elif len(tokens) == 2:
                 unknown_token = tokens[1]
-                if unknown_token in ["sequential", "parallel"]:
+                if unknown_token in ["sequential", "parallel", "--", "||"]:
                     # assign random name
                     name = "chainlink-" + str(uuid.uuid4().hex)
                     link_type = unknown_token
@@ -258,6 +258,11 @@ class ChainFactory:
             else:
                 name = "chainlink-" + str(uuid.uuid4().hex)
                 link_type = "sequential"
+
+            if link_type == "--":
+                link_type = "sequential"
+            elif link_type == "||":
+                link_type = "parallel"
 
             current_part = name
             parts[name] = {
@@ -274,10 +279,10 @@ class ChainFactory:
                     f"Error on line {part['beginning_line']}. Chainlink definition cannot be empty."
                 )
 
-            if part["link_type"] == "parallel":
-                raise NotImplementedError(
-                    f"Error on line {part['beginning_line']}. Parallel chainlinks are not yet supported in ChainFactory 0.0.9."
-                )
+            # if part["link_type"] == "parallel":
+            #     raise NotImplementedError(
+            #         f"Error on line {part['beginning_line']}. Parallel chainlinks are not yet supported in ChainFactory 0.0.9."
+            #     )
 
             print("Processing chainlink:", name)
 

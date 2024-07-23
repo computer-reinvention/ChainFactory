@@ -1,4 +1,4 @@
-# This chain will generate haikus and it's review in sequentially.
+# This chain will generate haikus and review them sequentially.
 @chainlink haiku-generator
 
 prompt: |
