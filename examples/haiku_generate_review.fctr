@@ -6,7 +6,7 @@ prompt: |
 
 def:
   Haiku:
-    haiku: str % The haiku text.
+    haiku: str % The haiku text. # the % sign precedes the field description. the description is optional. you should use it if the the LLM could be confused as to what to output.
     explanation: str? % Not required. The explanation of the haiku.
     topic: str % the topic of the haiku, always return the original topic.
 
@@ -14,7 +14,7 @@ out:
   haikus : list[Haiku]
 
 
-@chainlink haiku-critic
+@chainlink haiku-critic sequential
 
 prompt: |
   Write a short and concise review for each the following haikus.
@@ -31,7 +31,7 @@ prompt: |
 
 def:
   HaikuReview:
-    review: str % The review of the haiku.
+    review: str % The review of the haiku. 
 		haiku: str % The haiku text provided as input.
 
 out:
