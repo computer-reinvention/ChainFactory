@@ -279,12 +279,7 @@ class ChainFactory:
                     f"Error on line {part['beginning_line']}. Chainlink definition cannot be empty."
                 )
 
-            # if part["link_type"] == "parallel":
-            #     raise NotImplementedError(
-            #         f"Error on line {part['beginning_line']}. Parallel chainlinks are not yet supported in ChainFactory 0.0.9."
-            #     )
-
-            print("Processing chainlink:", name)
+            print(f"Processing {part['link_type']} chainlink: {name}")
 
             chainlinks.append(
                 ChainFactoryLink.from_file(
