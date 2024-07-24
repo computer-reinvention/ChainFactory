@@ -222,18 +222,60 @@ class ChainFactoryEngine:
         """
         chain: RunnableSerializable = current["chain"]
         link: ChainFactoryLink = current["link"]
-        output = previous["output"]
+        previous_link: ChainFactoryLink = previous["link"]
+        previous_output: dict = previous["output"]
+        previous_link_type: Literal["sequential", "parallel"]
 
-        assert isinstance(output, dict)
+        if not previous_link:
+            previous_link_type = "sequential"
+        else:
+            previous_link_type = previous_link._link_type
 
-        input = {k: v for k, v in output.items() if k in link.prompt.input_variables}
+        match previous_link_type:
+            case "sequential":
+                assert link.prompt
+                input = {
+                    k: v
+                    for k, v in previous_output.items()
+                    if k in link.prompt.input_variables
+                }
 
-        if not input:
-            raise ValueError(
-                f"Piping failed. No matching input variables found for linking chains {previous['name']} -> {current['name']}."
-            )
+                if not input:
+                    raise ValueError(
+                        f"Piping failed. No matching input variables found for linking chains {previous['name']} -> {current['name']}."
+                    )
 
-        return chain.invoke(input)
+                return chain.invoke(input)
+            case "parallel":
+                assert link.mask
+                assert previous_link._name in previous_output
+                previous_output = previous_output[previous_link._name]
+                assert isinstance(previous_output, list)
+
+                input = {
+                    link._name: [
+                        f"({i + 1}) "
+                        + link.mask.render(
+                            {k: output.get(k) for k in link.mask.variables}
+                        )
+                        for i, output in enumerate(previous_output)
+                    ]
+                }
+
+                if not input[link._name]:
+                    raise ValueError(
+                        f"Piping failed. No matching variables found for linking chains {previous['name']} -> {current['name']}. Please note that this is a convex chain and hence the matching variables are determined by the mask."
+                    )
+
+                print("=====================")
+                print("Convex Chain Input:")
+                pprint(input)
+                print("=====================")
+                return chain.invoke(input)
+            case _:
+                raise ValueError(
+                    f"Invalid link type: {previous_link._link_type} for chain {previous['name']}"
+                )
 
     def _execute_chains(self, initial_input: dict) -> list[dict]:
         """
@@ -285,6 +327,8 @@ class ChainFactoryEngine:
                 case _:
                     raise ValueError(f"Invalid link type: {link._link_type}")
             t2 = time.time()
+
+            assert output
 
             execution_trace.append(
                 {

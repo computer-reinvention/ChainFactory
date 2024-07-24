@@ -1,9 +1,75 @@
 import re
-from typing import Any
+from typing import Any, Literal
 
 from langchain.pydantic_v1 import BaseModel, Field
 
 from ..parsing.class_from_dict import create_class_from_dict
+
+
+class FactoryMask:
+    """
+    This type is the representation of the `mask` section of a chain factory file.
+    """
+
+    type: str
+    variables: list[str] = []
+    template: str | None = None
+
+    def __init__(
+        self,
+        variables: list[str],
+        template: str | None = None,
+        type: Literal["auto", "template"] = "auto",
+    ):
+        if not template:
+            raise ValueError("FactoryMask cannot be initialized without a template.")
+        else:
+            self.template = template
+
+        if not variables:
+            variables = self._extract_variables(template)
+
+        if not variables:
+            if template:
+                raise ValueError("FactoryMask template does not contain any variables.")
+            else:
+                raise ValueError("FactoryMask cannot be initialized without variables.")
+
+        print(template)
+        print(variables)
+
+        for var in variables:
+            print(var)
+            if "." in var:
+                original = var
+                cleaned = var.replace(".", "$")
+                self.variables.append(cleaned)
+                self.template = self.template.replace(
+                    "{" + original + "}",
+                    "{" + cleaned + "}",
+                )
+            else:
+                self.variables.append(var)
+
+    def render(self, variables: dict[str, Any]) -> str:
+        """
+        Render the mask template with the given variables.
+        """
+        assert self.template
+        rendered = self.template
+        for var, value in variables.items():
+            rendered = rendered.replace("{" + var + "}", str(value))
+
+        return rendered
+
+    def _extract_variables(self, template: str) -> list[str]:
+        """
+        Extract input variables from the prompt template using regex.
+        """
+        pattern = r"\{([^}]+)\}"  # matches {variable_name}
+        matches = re.findall(pattern, template)
+
+        return matches
 
 
 class FactoryDefinitions:
@@ -56,7 +122,7 @@ class FactoryPrompt:
         purpose: str | None = None,
     ):
         if not template:
-            raise ValueError("Either template or input_variables must be provided.")
+            raise ValueError("FactoryPrompt cannot be initialized without a template.")
 
         self.purpose = purpose
         self.template = template
