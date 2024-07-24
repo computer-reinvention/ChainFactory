@@ -8,18 +8,11 @@ out:
   topic: str % the original topic. required.
   haikus : list[Haiku]
 
-
-# the below is a sequential -> parallel chainlink aka a concave chainlink.
-# any iterable field in the output of the previous chain is used to create a set of inputs for this chain.
-# while splitting, the fields are filtered to only retain the input variables of this chain.
-# also note that whereas the previous chain had explicitly defined the prompt template, this chain defines the input variables and a purpose statement.
-# the prompt template is generated automatically in the parsing stage
-
 @chainlink critic ||
 purpose: critical analysis of a haiku in 3 to 5 sentences
 in:
   topic: str
-  haikus.element.haiku: str # cannot use _ here because the previoud chain is sequential and has a single output element
+  haikus.element.haiku: str
   haikus.element.explanation: str
 out:
   review: str % concise literary analysis of this haiku.
@@ -28,30 +21,26 @@ out:
 @chainlink validator ||
 purpose: validate if critical review of a haiku is sensible
 in:
-  critic.element.haiku: str # we can use _ to refer to the previous chain's output elements' fields 
-  critic.element.review: str # this should be simplified though
+  critic.element.haiku: str
+  critic.element.review: str
+	haiku: str
+	review: str
 out:
   valid: bool
   haiku: str
   review: str
   reasoning: str
 
-# the below is a parallel -> sequential chainlink aka a convex chainlink. for these reasons it is restricted to only one input variable whose name is the same this chain's name.
-# this chainlink uses a special field called `mask` to specify which fields to mask to create a string representation of elements of the previous chain's output.
-# you can set the `mask` field to `auto` to automatically generate a mask based on the input variables.
-# otherwise, you can specify the mask template explicitly
-# this chainlink's prompt template cannot contain any input variable other than its own name.
-
 @chainlink summarizer --
 purpose: create a humorous haiku describing the haiku generation and reviewing system based on your observations
 mask: 
   type: auto
   variables: 
-    - validator.element.haiku # syntax is like this for compatibility with the element syntax used in the `in` sections of other chainlinks
+    - validator.element.haiku
     - validator.element.review
     - validator.element.valid
 out:
-  generator_haiku: str % a haiku describing the haiku generator based on the haikus
+  generator_haiku: str
   generator_haiku_explanation: str
-  reviewer_haiku: str % a haiku describing the haiku reviewer based on the reviews
+  reviewer_haiku: str
   reviewer_haiku_explanation: str

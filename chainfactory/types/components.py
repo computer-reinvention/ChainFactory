@@ -35,11 +35,7 @@ class FactoryMask:
             else:
                 raise ValueError("FactoryMask cannot be initialized without variables.")
 
-        print(template)
-        print(variables)
-
         for var in variables:
-            print(var)
             if "." in var:
                 original = var
                 cleaned = var.replace(".", "$")
