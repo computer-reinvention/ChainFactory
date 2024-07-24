@@ -25,6 +25,8 @@ class ChainFactoryEngineConfig:
     max_tokens: int = 1024
     model_kwargs: dict = field(default_factory=dict)
     max_parallel_chains: int = 10
+    print_trace: bool = True
+    print_trace_for_single_chain: bool = False
 
 
 class ChainFactoryEngine:
@@ -80,7 +82,13 @@ class ChainFactoryEngine:
         except ValueError as e:
             traceback.print_exc()
         finally:
-            self._print_trace(trace)
+            if self.config.print_trace:
+                if len(trace) > 1:
+                    self._print_trace(trace)
+                elif len(trace) == 1 and self.config.print_trace_for_single_chain:
+                    self._print_trace(trace)
+                else:
+                    pass
 
         if len(trace) == 0:
             raise ValueError(
@@ -110,7 +118,7 @@ class ChainFactoryEngine:
 
         if not link.prompt.input_variables:
             raise ValueError(
-                f"unable to determine input_variables for chain {link._name}"
+                f"unable to determine input_variables for chain: {link._name}"
             )
 
         for var in link.prompt.input_variables:
@@ -194,8 +202,6 @@ class ChainFactoryEngine:
 
             current_inputs.append(current_input)
 
-        print("current_inputs:", current_inputs)
-
         # execute the chains in parallel, preserving the order of the inputs
         with ThreadPoolExecutor(self.config.max_parallel_chains) as executor:
             futures = []
@@ -217,6 +223,8 @@ class ChainFactoryEngine:
         chain: RunnableSerializable = current["chain"]
         link: ChainFactoryLink = current["link"]
         output = previous["output"]
+
+        assert isinstance(output, dict)
 
         input = {k: v for k, v in output.items() if k in link.prompt.input_variables}
 
@@ -244,6 +252,16 @@ class ChainFactoryEngine:
             if not previous_output:
                 previous_output = initial_input
 
+            if previous_link and previous_link._link_type == "parallel":
+                assert isinstance(previous_output, list)
+
+                if not isinstance(previous_output[0], dict):
+                    previous_output = [item.dict() for item in previous_output]
+
+                previous_output = {
+                    previous_link._name: previous_output,
+                }
+
             previous = {
                 "name": previous_chain_name,
                 "output": previous_output,
@@ -264,6 +282,8 @@ class ChainFactoryEngine:
                     output = self._execute_sequential_chain(previous, current)
                 case "parallel":
                     output = self._execute_parallel_chain(previous, current)
+                case _:
+                    raise ValueError(f"Invalid link type: {link._link_type}")
             t2 = time.time()
 
             execution_trace.append(
@@ -317,10 +337,8 @@ class ChainFactoryEngine:
             else:
                 model = llm.with_structured_output(link.output._type)
 
-            if not link.prompt:
-                raise ValueError(
-                    "ChainFactoryLink.prompt cannot be None at this point."
-                )
+            assert link.prompt
+            assert link.prompt.template
 
             prompt = ChatPromptTemplate.from_template(link.prompt.template)
 
