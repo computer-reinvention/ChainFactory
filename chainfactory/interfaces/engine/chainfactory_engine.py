@@ -222,9 +222,11 @@ class ChainFactoryEngine:
         """
         chain: RunnableSerializable = current["chain"]
         link: ChainFactoryLink = current["link"]
-        input = previous["output"]
+        output = previous["output"]
 
-        input = {k: v for k, v in input.items() if k in link.prompt.input_variables}
+        assert isinstance(output, dict)
+
+        input = {k: v for k, v in output.items() if k in link.prompt.input_variables}
 
         if not input:
             raise ValueError(
@@ -335,10 +337,8 @@ class ChainFactoryEngine:
             else:
                 model = llm.with_structured_output(link.output._type)
 
-            if not link.prompt:
-                raise ValueError(
-                    "ChainFactoryLink.prompt cannot be None at this point."
-                )
+            assert link.prompt
+            assert link.prompt.template
 
             prompt = ChatPromptTemplate.from_template(link.prompt.template)
 

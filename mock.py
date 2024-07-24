@@ -7,11 +7,25 @@ set_verbose(False)
 
 def haiku_and_review_sequential(topic="Python", num=2):
     """
-    Demonstrates how to create and execute a sequential chain.
+    Demonstrates how to create a chain with 2 steps both of which run sequentially.
+
+    <input>           ------------------------- the initial values. (topic, num in this case)
+        |
+    [haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
+        |
+    (filter)          ------------------------- output is filtered to only retain relevant fields. sequential -> sequential linking.
+        |
+    [haiku-critic]    ------------------------- (generate `num` reviews in 1 inference)
+        |
+    <output>          ------------------------- the output is a haiku-critic.out instance
+
+    Note: Filtering makes sure that only the input_variables of the subsequent chain are retained from the output of the previous chain.
+
+    Args:
+        topic (str, optional): The topic of the haiku. Defaults to "Python".
+        num (int, optional): The number of haikus to generate. Defaults to 2.
     """
-    haiku_review_engine = Engine.from_file(
-        "examples/haiku_generate_review.fctr"
-    )  # this is a sequential chain. Step 1 generates and step 2 reviews all of them sequentially at onve
+    haiku_review_engine = Engine.from_file("examples/haiku_generate_review.fctr")
     res = haiku_review_engine(topic=topic, num=num)
 
     for rev in res.reviews:
@@ -24,18 +38,20 @@ def haiku_and_review_sequential(topic="Python", num=2):
 
 def haiku_and_review_parallel(topic="Python", num=2):
     """
-    Demonstrates how to create a chain with 2 steps and these types of links:
+    Demonstrates how to create a chain with 2 steps one of which runs parallely.
 
-    <input>
+    <input>           ------------------------- the initial values. (topic, num in this case)
         |
     [haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
         |
+    (filter)
     (split)           ------------------------- output is split `num` inputs for next step. sequential -> parallel linking.
         |
     [haiku-critic]    ------------------------- parallel (`num` inferences simultaneously in threadpool)
         |
     <output>          ------------------------- the output is a list of haiku-critic.out model instances
 
+    Note: Splitting means creating `num` separate inputs that will be passed to `num` simultaneous instances of the subsequent chain. Filtering is automatically applied.
 
     Args:
         topic (str, optional): The topic of the haiku. Defaults to "Python".
@@ -43,7 +59,7 @@ def haiku_and_review_parallel(topic="Python", num=2):
     """
     haiku_review_engine = Engine.from_file(
         "examples/haiku_generate_review_parallel.fctr"
-    )  # this chain has a parallel step. Step 1 generates haikus and step 2 reviews each of them parallely
+    )
     res = haiku_review_engine(topic=topic, num=num)
 
     for item in res:
@@ -58,7 +74,7 @@ def haiku_generate_review_validate(topic="Python", num=2):
     """
     Demonstrates how to create a chain with 3 steps and these types of links:
 
-    <input>
+    <input>           ------------------------- the initial values. (topic, num in this case)
       |
     [haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
       |
@@ -71,6 +87,8 @@ def haiku_generate_review_validate(topic="Python", num=2):
     [validator]       ------------------------- parallel (`num` inferences simultaneously in threadpool)
       |
     <output>          ------------------------- the output is a list of validator.out model instances
+
+    Note: Mapping is a slightly complex form of filtering. It is applied on all elements of previous chain's output at once.
 
     Args:
         topic (str, optional): The topic of the haiku. Defaults to "Python".
