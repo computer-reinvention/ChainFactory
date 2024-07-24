@@ -4,6 +4,7 @@ prompt: |
   Instructions:
   =============
   - Generate a well-formatted prompt template that uses `input_variables` to achieve specified `purpose`.
+  - All placeholders should be wrapped in single curly braces.
 
   ================
   Input Variables:

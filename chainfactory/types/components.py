@@ -1,9 +1,7 @@
 import re
-import pprint
 from typing import Any
 
-from langchain.pydantic_v1 import BaseModel
-from langchain_core.pydantic_v1 import Field
+from langchain.pydantic_v1 import BaseModel, Field
 
 from ..parsing.class_from_dict import create_class_from_dict
 
@@ -72,7 +70,10 @@ class FactoryPrompt:
                 original = var
                 cleaned = var.replace(".", "$")
                 self.input_variables.append(cleaned)
-                self.template = self.template.replace(original, cleaned)
+                self.template = self.template.replace(
+                    "{" + original + "}",
+                    "{" + cleaned + "}",
+                )
             else:
                 self.input_variables.append(var)
 
@@ -107,4 +108,3 @@ class FactoryOutput:
             defined_types=definitions,
             default_value_class=Field,
         )
-        pprint.pprint(self._type.__annotations__)

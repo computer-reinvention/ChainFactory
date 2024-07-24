@@ -1,0 +1,30 @@
+@chainlink haiku-generator
+prompt: Write {num} haiku(s) about {topic}. Use the standard 5-7-5 syllable pattern.
+def:
+  Haiku:
+    haiku: str
+    explanation: str
+out:
+	topic: str % the original topic. required.
+  haikus : list[Haiku]
+
+@chainlink haiku-critic ||
+purpose: critical analysis of a haiku in 3 to 5 sentences
+in:
+	topic: str
+	haikus.element.haiku: str
+	haikus.element.explanation: str
+out:
+	review: str % concise literary analysis of this haiku.
+	haiku: str % original haiku text. required.
+
+@chainlink validator ||
+purpose: validate if critical review of a haiku is sensible
+in:
+	haiku-critic.element.haiku: str % the haiku text
+	haiku-critic.element.review: str % ai generated review of the haiku
+out:
+	valid: bool % true if the review is sensible, false otherwise. required.
+	haiku: str % verbatim haiku text. required.
+	review: str % verbatim review text. required.
+	reasoning: str % reasoning for your decision. required.

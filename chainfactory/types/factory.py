@@ -27,7 +27,6 @@ class ChainFactoryLink:
     _parsed_source: Optional[Any]
     _link_type: Literal["sequential", "parallel"] = "sequential"
 
-    # 1:1 correspondence with the .fctr file sections
     definitions: Optional[FactoryDefinitions]
     output: Optional[FactoryOutput]
     prompt: Optional[FactoryPrompt]
@@ -46,7 +45,6 @@ class ChainFactoryLink:
         self._source = source  # the YAML template
         self._parsed_source = parsed_source  # the parsed YAML object / dictionary
 
-        # 1:1 correspondence with the .fctr file sections
         self.definitions: Optional[FactoryDefinitions] = definitions  # section `def`
         self.prompt: Optional[FactoryPrompt] = prompt  # section `prompt`
         self.output: Optional[FactoryOutput] = output  # section `out`
@@ -116,10 +114,6 @@ class ChainFactoryLink:
                     purpose=purpose,
                     input_variables=input_variables,
                 ).prompt_template
-
-                print("============== GENERATED PROMPT ==============")
-                print(generated_prompt_template)
-                print("==============================================")
 
                 factory_prompt = FactoryPrompt(
                     template=generated_prompt_template,
@@ -226,8 +220,6 @@ class ChainFactory:
 
             tokens = [token for token in line.strip().split(" ")]
 
-            print(tokens)
-
             if len(tokens) > 3:
                 raise ValueError(
                     f"Error on line {i}. Invalid @chainlink definition. Must be of the form `@chainlink <name> <link_type>`."
@@ -272,22 +264,49 @@ class ChainFactory:
             }
 
         chainlinks = []
-
+        previous_link = None
         for name, part in parts.items():
             if not part["lines"]:
                 raise ValueError(
                     f"Error on line {part['beginning_line']}. Chainlink definition cannot be empty."
                 )
 
-            print(f"Processing {part['link_type']} chainlink: {name}")
-
-            chainlinks.append(
-                ChainFactoryLink.from_file(
-                    name=name,
-                    file_content="\n".join(part["lines"]).replace("\t", "  "),
-                    link_type=part["link_type"],
-                    engine_cls=engine_cls,
-                )
+            link = ChainFactoryLink.from_file(
+                name=name,
+                file_content="\n".join(part["lines"]).replace("\t", "  "),
+                link_type=part["link_type"],
+                engine_cls=engine_cls,
             )
+
+            if previous_link and previous_link._link_type == "parallel":
+                assert link.prompt
+                assert link.prompt.input_variables
+                assert link.prompt.template
+
+                match link._link_type:
+                    case "parallel":
+                        updated_input_variables = []
+                        for var in link.prompt.input_variables:
+                            if var.startswith(previous_link._name):
+                                continue
+
+                            full_var = f"{previous_link._name}$element${var}"
+                            updated_input_variables.append(full_var)
+                            link.prompt.template = link.prompt.template.replace(
+                                "{" + var + "}",
+                                "{" + full_var + "}",
+                            )
+
+                        if updated_input_variables:
+                            link.prompt.input_variables = updated_input_variables
+                    case "sequential":
+                        pass
+                    case _:
+                        raise ValueError(
+                            f"Invalid chainlink type: {link._link_type}. Must be one of 'sequential', '--', 'parallel', '||' or empty."
+                        )
+
+            previous_link = link
+            chainlinks.append(link)
 
         return cls(links=chainlinks)
