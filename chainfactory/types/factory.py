@@ -14,6 +14,7 @@ from .components import (
     FactoryPrompt,
     FactoryOutput,
     FactoryInput,
+    FactoryMask,
 )
 
 
@@ -39,6 +40,7 @@ class ChainFactoryLink:
         definitions: Optional[FactoryDefinitions] = None,
         output: Optional[FactoryOutput] = None,
         prompt: Optional[FactoryPrompt] = None,
+        mask: Optional[FactoryMask] = None,
         link_type: Literal["sequential", "parallel"] = "sequential",
     ):
         self._name = name
@@ -47,6 +49,9 @@ class ChainFactoryLink:
 
         self.definitions: Optional[FactoryDefinitions] = definitions  # section `def`
         self.prompt: Optional[FactoryPrompt] = prompt  # section `prompt`
+        self.mask: Optional[FactoryMask] = (
+            mask  # section `mask` (only for convex chains)
+        )
         self.output: Optional[FactoryOutput] = output  # section `out`
         self._link_type = link_type
 
@@ -57,6 +62,8 @@ class ChainFactoryLink:
         file_path: str | None = None,
         file_content: str | None = None,
         link_type: Literal["sequential", "parallel"] = "sequential",
+        mask: Optional[FactoryMask] = None,
+        convex: bool = False,
         engine_cls: Any | None = None,
     ) -> "ChainFactoryLink":
         """
@@ -80,6 +87,7 @@ class ChainFactoryLink:
         prompt = source.get("prompt")
         defs = source.get("def")
         output = source.get("out")
+        mask = source.get("mask")
 
         if isinstance(prompt, str):
             prompt = {
@@ -98,11 +106,7 @@ class ChainFactoryLink:
         input_variables = None if not factory_input else factory_input.input_variables
 
         if purpose:
-            if engine_cls is None:
-                raise ValueError(
-                    "engine_cls must be provided for generating prompt template from purpose."
-                )
-
+            assert engine_cls
             with pkg_resources.open_text(
                 "chainfactory.chains", "generate_prompt_template.fctr"
             ) as file:
@@ -112,7 +116,7 @@ class ChainFactoryLink:
 
                 generated_prompt_template = engine(
                     purpose=purpose,
-                    input_variables=input_variables,
+                    input_variables=[name] if convex else input_variables,
                 ).prompt_template
 
                 factory_prompt = FactoryPrompt(
@@ -141,6 +145,55 @@ class ChainFactoryLink:
             )
         )
 
+        if isinstance(mask, str):
+            if mask == "auto":
+                factory_mask = FactoryMask(
+                    type="auto",
+                    variables=[],
+                    template=None,
+                )
+            else:
+                factory_mask = FactoryMask(
+                    type="template",
+                    template=mask,
+                    variables=[],
+                )
+        elif isinstance(mask, dict):
+            template = mask.get("template", None)
+            variables = mask.get("variables", [])
+            if not template and not variables:
+                raise ValueError(
+                    "FactoryMask.variables cannot be empty when type is auto."
+                )
+            elif not template:
+                assert engine_cls
+                with pkg_resources.open_text(
+                    "chainfactory.chains", "generate_mask_template.fctr"
+                ) as file:
+                    file_content = file.read()
+                    engine = engine_cls.from_str(file_content)
+
+                    generated_mask_template = engine(
+                        variables=variables,
+                    ).template
+
+                    factory_mask = FactoryMask(
+                        template=generated_mask_template,
+                        variables=variables,
+                    )
+            else:
+                factory_mask = FactoryMask(
+                    template=mask.get("template"),
+                    variables=[],
+                )
+        else:
+            if convex:
+                raise ValueError(
+                    f"A convex (parallel to sequential) chainlink necessarily requires a valid mask. Please provide a mask or alter the convexity by either making preceding chain sequential or the current chain: {name} parallel."
+                )
+
+            factory_mask = None
+
         return cls(
             name=name,
             source=file_path,
@@ -148,6 +201,7 @@ class ChainFactoryLink:
             prompt=factory_prompt,
             output=factory_output,
             definitions=factory_defs,
+            mask=factory_mask,
             link_type=link_type,
         )
 
@@ -271,10 +325,20 @@ class ChainFactory:
                     f"Error on line {part['beginning_line']}. Chainlink definition cannot be empty."
                 )
 
+            if (
+                previous_link
+                and previous_link._link_type == "parallel"
+                and part["link_type"] == "sequential"
+            ):
+                convex = True
+            else:
+                convex = False
+
             link = ChainFactoryLink.from_file(
                 name=name,
                 file_content="\n".join(part["lines"]).replace("\t", "  "),
                 link_type=part["link_type"],
+                convex=convex,
                 engine_cls=engine_cls,
             )
 

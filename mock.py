@@ -1,3 +1,4 @@
+from pprint import pprint
 from chainfactory import Engine
 from langchain.globals import set_debug, set_verbose
 
@@ -113,5 +114,86 @@ def haiku_generate_review_validate(topic="Python", num=2):
         print("==================\n\n\n")
 
 
+def haiku_generate_review_validate(topic="Python", num=2):
+    """
+    Demonstrates how to create a chain with 3 steps and these types of links:
+
+    <input>           ------------------------- the initial values. (topic, num in this case)
+      |
+    [haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
+      |
+    (split)           ------------------------- output split into `num` inputs for next step. sequential -> parallel linking.
+      |
+    [haiku-critic]    ------------------------- parallel (`num` inferences simultaneously in threadpool)
+      |
+    (map)             ------------------------- output elements mapped into inputs for next step. parallel -> parallel linking.
+      |
+    [validator]       ------------------------- parallel (`num` inferences simultaneously in threadpool)
+      |
+    <output>          ------------------------- the output is a list of validator.out model instances
+
+    Note: Mapping is a slightly complex form of filtering. It is applied on all elements of previous chain's output at once.
+
+    Args:
+        topic (str, optional): The topic of the haiku. Defaults to "Python".
+        num (int, optional): The number of haikus to generate. Defaults to 2.
+    """
+    haiku_review_engine = Engine.from_file(
+        "examples/haiku_generate_review_validate.fctr"
+    )
+
+    res = haiku_review_engine(topic=topic, num=1)
+
+    for item in res:
+        print("==================")
+        print("Haiku:")
+        print(item.haiku)
+        print("\n")
+        print("Review:")
+        print(item.review)
+        print("\n")
+        print("Validation:", item.valid)
+        print("Reason:", item.reasoning)
+        print("==================\n\n\n")
+
+
+def haiku_generate_review_validate_summary(topic="Python", num=2):
+    """
+    Demonstrates how to create a chain with 3 steps and these types of links:
+
+    <input>                    ------------------------- the initial values. (topic, num in this case)
+      |
+    [haiku-generator]          ------------------------- generate `num` haiku in 1 inference
+      |
+    (split)                    ------------------------- output split into `num` inputs for next step. sequential -> parallel linking.
+      |
+    [haiku-critic]             ------------------------- `num` inferences simultaneously in threadpool
+      |
+    (map)                      ------------------------- output elements mapped into inputs for next step. parallel -> parallel linking.
+      |
+    [validator]                ------------------------- `num` inferences simultaneously in threadpool
+      |
+    (reduce)                   ------------------------- output elements reduced into a single input for next step. parallel -> sequential linking.
+      |
+    [summarize-activity]       ------------------------- 1 single inference
+      |
+    <output>                   ------------------------- the output is a list of summarize-activity.out model instances
+
+    Note: Reduction is the coalescence of the all the elements of parallel chain's output into a single input for the next chainlink. This is necessary to come back to sequential execution.
+
+    Args:
+        topic (str, optional): The topic of the haiku. Defaults to "Python".
+        num (int, optional): The number of haikus to generate. Defaults to 2.
+    """
+    haiku_review_engine = Engine.from_file(
+        "examples/haiku_generate_review_validate_haiku.fctr"
+    )
+
+    res = haiku_review_engine(topic=topic, num=num)
+    print("==================")
+    pprint(res)
+    print("==================")
+
+
 if __name__ == "__main__":
-    haiku_generate_review_validate(topic="adderall", num=6)
+    haiku_generate_review_validate_summary(topic="modafinil", num=2)

@@ -1,0 +1,18 @@
+# This internal chain generates a mask template based on variables.
+prompt: |
+  =============
+  Instructions:
+  =============
+  - Given a list of input variables, generate a template string for a combined representation of the variables.
+  - Keep the template short and concise.
+  - Use single curly braces to wrap the variables.
+
+  ==========
+  Variables:
+  ==========
+  {variables}
+
+  Go!
+
+out:
+  template: str
