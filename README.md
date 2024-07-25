@@ -152,16 +152,13 @@ The completed `.fctr` file for generating haikus looks like this:
 ``` yaml
 # file: haiku.fctr
 def:
-    Haiku:
-        haiku: str
-        explanation: str
-        topic: str
-
-prompt: |
-    Write {num} haiku(s) about {topic}
-
+  Haiku:
+    haiku: str
+    explanation: str
+    topic: str
+prompt: Write {num} haiku(s) about {topic}
 out:
-    haikus : list[Haiku]
+  haikus : list[Haiku]
 ```
 
 This file can be loaded directly into the `ChainFactoryEngine`. This is a driver class which creates the `Factory` from `haiku.fctr` and then uses the `Factory` to create a `LangChain` `RunnableSerializable` chain internally using a dynmically created pydantic model to force the model output into the desired structure.
@@ -171,7 +168,6 @@ An instance of the `ChainFactoryEngine` can then be directly called like a funct
 from chainfactory import ChainFactoryEngine
 
 engine = ChainFactoryEngine.from_file("haiku.fctr")
-
 results = engine(topic="Python", num=3) # this call will execute the chain and any subsequent chains after that
 ```
 
@@ -258,40 +254,40 @@ prompt: |
   {haikus}
 
   Consider the following:
-	- Creativity and Originality
-	- Clarity and Structure
-	- Emotional Impact
-	- Relevance and Cultural Significance
+    - Creativity and Originality
+    - Clarity and Structure
+    - Emotional Impact
+    - Relevance and Cultural Significance
 
-	Write a review of the above haikus.
+    Write a review of the above haikus.
 def:
   HaikuReview:
     review: str % The review of the haiku. 
-	haiku: str % The haiku text provided as input.
+    haiku: str % The haiku text provided as input.
 out:
-	reviews: list[HaikuReview]
+  reviews: list[HaikuReview]
 ```
 
 Note how the `@chainlink` directive is used to define the chain with multiple steps. The `haikus` field is present in both the `generator` and `critic` chains. ChainFactory will automatically match the input variables and pass them to the respective chains. The following diagram shows the execution.
 
 ``` txt
 
-    <input>           ------------------------- the initial values. (topic, num in this case)
-        |
-        | 
-    [haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
-        |
-        |
-    (filter)          ------------------------- output is filtered to only retain relevant fields. sequential -> sequential linking.
-        |
-        |
-    [haiku-critic]    ------------------------- (generate `num` reviews in 1 inference)
-        |
-        |
-    <output>          ------------------------- the output is a haiku-critic.out instance
+<input>           ------------------------- the initial values. (topic, num in this case)
+    |
+    | 
+[haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
+    |
+    |
+(filter)          ------------------------- output is filtered to only retain relevant fields. sequential -> sequential linking.
+    |
+    |
+[haiku-critic]    ------------------------- (generate `num` reviews in 1 inference)
+    |
+    |
+<output>          ------------------------- the output is a haiku-critic.out instance
 
 
-    Note: Filtering makes sure that only the input_variables of the subsequent chain are included from the previous chain output.
+Note: Filtering makes sure that only the input_variables of the subsequent chain are included from the previous chain output.
 
 ```
 
@@ -306,7 +302,7 @@ def:
     haiku: str
     explanation: str
 out:
-	topic: str % the original topic. required.
+  topic: str % the original topic. required.
   haikus : list[Haiku]
 
 # a concave transition between the two chainlinks
@@ -314,12 +310,12 @@ out:
 @chainlink haiku-critic ||
 purpose: critical analysis of a haiku in 3 to 5 sentences
 in:
-	topic: str
-	haikus.element.haiku: str
-	haikus.element.explanation: str
+  topic: str
+  haikus.element.haiku: str
+  haikus.element.explanation: str
 out:
-	review: str % concise literary analysis of this haiku.
-	haiku: str % original haiku text. required.
+  review: str % concise literary analysis of this haiku.
+  haiku: str % original haiku text. required.
 ```
 
 Pay attention to the `element` syntax to refer to the interal fields of the element in the iterable from previous chain output. The `critic` chain will now be executed on each of the haiku separately.
@@ -329,24 +325,24 @@ Here's the flow diagram:
 
 ``` txt
 
-    <input>           ------------------------- the initial values. (topic, num in this case)
-        |
-        |
-    [haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
-        |
-        |
-    (filter)
-        |
-        |
-    (split)           ------------------------- output is used to prepare `num` inputs for next step. sequential -> parallel linking.
-        |
-        |
-    [haiku-critic]    ------------------------- parallel (`num` inferences simultaneously in threadpool)
-        |
-        |
-    <output>          ------------------------- the output is a list of haiku-critic.out model instances
+<input>           ------------------------- the initial values. (topic, num in this case)
+    |
+    |
+[haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
+    |
+    |
+(filter)
+    |
+    |
+(split)           ------------------------- output is used to prepare `num` inputs for next step. sequential -> parallel linking.
+    |
+    |
+[haiku-critic]    ------------------------- parallel (`num` inferences simultaneously in threadpool)
+    |
+    |
+<output>          ------------------------- the output is a list of haiku-critic.out model instances
 
-    Note: Splitting means creating `num` separate inputs that will be passed to `num` simultaneous instances of the subsequent chain. Filtering is automatically applied.
+Note: Splitting means creating `num` separate inputs that will be passed to `num` simultaneous instances of the subsequent chain. Filtering is automatically applied.
 
 ```
 
@@ -370,52 +366,52 @@ out:
 @chainlink haiku-critic ||
 purpose: critical analysis of a haiku in 3 to 5 sentences
 in:
-	topic: str
-	haikus.element.haiku: str
-	haikus.element.explanation: str
+  topic: str
+  haikus.element.haiku: str
+  haikus.element.explanation: str
 out:
-	review: str % concise literary analysis of this haiku.
-	haiku: str % original haiku text. required.
+  review: str % concise literary analysis of this haiku.
+  haiku: str % original haiku text. required.
 
 # a planar transition between two parallel chainlinks
 
 @chainlink validator ||
 purpose: validate if critical review of a haiku is sensible
 in:
-	haiku-critic.element.haiku: str % the haiku text
-	haiku-critic.element.review: str % ai generated review of the haiku
+  haiku-critic.element.haiku: str % the haiku text
+  haiku-critic.element.review: str % ai generated review of the haiku
 out:
-	valid: bool % true if the review is sensible, false otherwise. required.
-	haiku: str % verbatim haiku text. required.
-	review: str % verbatim review text. required.
-	reasoning: str % reasoning for your decision. required.
+  valid: bool % true if the review is sensible, false otherwise. required.
+  haiku: str % verbatim haiku text. required.
+  review: str % verbatim review text. required.
+  reasoning: str % reasoning for your decision. required.
 ```
 
 Note how the validation chain refers to the previous chain output using the `chain-name.element` syntax. Here's the flow diagram:
 
 ``` txt
 
-    <input>           ------------------------- the initial values. (topic, num in this case)
-      |
-      |
-    [haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
-      |
-      |
-    (split)           ------------------------- output split into `num` inputs for next step. sequential -> parallel linking.
-      |
-      |
-    [haiku-critic]    ------------------------- parallel (`num` inferences simultaneously in threadpool)
-      |
-      |
-    (map)             ------------------------- output elements mapped into inputs for next step. parallel -> parallel linking.
-      |
-      |
-    [validator]       ------------------------- parallel (`num` inferences simultaneously in threadpool)
-      |
-      |
-    <output>          ------------------------- the output is a list of validator.out model instances
+<input>           ------------------------- the initial values. (topic, num in this case)
+  |
+  |
+[haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
+  |
+  |
+(split)           ------------------------- output split into `num` inputs for next step. sequential -> parallel linking.
+  |
+  |
+[haiku-critic]    ------------------------- parallel (`num` inferences simultaneously in threadpool)
+  |
+  |
+(map)             ------------------------- output elements mapped into inputs for next step. parallel -> parallel linking.
+  |
+  |
+[validator]       ------------------------- parallel (`num` inferences simultaneously in threadpool)
+  |
+  |
+<output>          ------------------------- the output is a list of validator.out model instances
 
-    Note: Mapping is a slightly complex form of filtering. It is applied on all elements of previous chain's output at once.
+Note: Mapping is a slightly complex form of filtering. It is applied on all elements of previous chain's output at once.
 
 ```
 
@@ -439,25 +435,25 @@ out:
 @chainlink haiku-critic ||
 purpose: critical analysis of a haiku in 3 to 5 sentences
 in:
-	topic: str
-	haikus.element.haiku: str
-	haikus.element.explanation: str
+  topic: str
+  haikus.element.haiku: str
+  haikus.element.explanation: str
 out:
-	review: str % concise literary analysis of this haiku.
-	haiku: str % original haiku text. required.
+  review: str % concise literary analysis of this haiku.
+  haiku: str % original haiku text. required.
 
 # a planar transition between two parallel chainlinks
 
 @chainlink validator ||
 purpose: validate if critical review of a haiku is sensible
 in:
-	haiku-critic.element.haiku: str % the haiku text
-	haiku-critic.element.review: str % ai generated review of the haiku
+  haiku-critic.element.haiku: str % the haiku text
+  haiku-critic.element.review: str % ai generated review of the haiku
 out:
-	valid: bool % true if the review is sensible, false otherwise. required.
-	haiku: str % verbatim haiku text. required.
-	review: str % verbatim review text. required.
-	reasoning: str % reasoning for your decision. required.
+  valid: bool % true if the review is sensible, false otherwise. required.
+  haiku: str % verbatim haiku text. required.
+  review: str % verbatim review text. required.
+  reasoning: str % reasoning for your decision. required.
 
 # and here's the final convex transition - necessary to merge output elements from the parallel chainlinks 
 
@@ -480,38 +476,37 @@ Here's the flow diagram. We finally have 3 transitions and 4 chainlinks.
 
 ``` txt
 
-    <input>                    ------------------------- the initial values. (topic, num in this case)
-      |
-      |
-    [haiku-generator]          ------------------------- generate `num` haiku in 1 inference
-      |
-      |
-    (split)                    ------------------------- output split into `num` inputs for next step. sequential -> parallel linking.
-      |
-      |
-    [haiku-critic]             ------------------------- `num` inferences simultaneously in threadpool
-      |
-      |
-    (map)                      ------------------------- output elements mapped into inputs for next step. parallel -> parallel linking.
-      |
-      |
-    [validator]                ------------------------- `num` inferences simultaneously in threadpool
-      |
-      |
-    (reduce)                   ------------------------- output elements reduced into a single input for next step. parallel -> sequential linking.
-      |
-      |
-    [summarize-activity]       ------------------------- 1 single inference converts `num` inputs into a single output.
-      |
-      |
-    <output>                   ------------------------- the output is a list of summarize-activity.out model instances
+<input>                    ------------------------- the initial values. (topic, num in this case)
+  |
+  |
+[haiku-generator]          ------------------------- generate `num` haiku in 1 inference
+  |
+  |
+(split)                    ------------------------- output split into `num` inputs for next step. sequential -> parallel linking.
+  |
+  |
+[haiku-critic]             ------------------------- `num` inferences simultaneously in threadpool
+  |
+  |
+(map)                      ------------------------- output elements mapped into inputs for next step. parallel -> parallel linking.
+  |
+  |
+[validator]                ------------------------- `num` inferences simultaneously in threadpool
+  |
+  | (reduce)                   ------------------------- output elements reduced into a single input for next step. parallel -> sequential linking.
+  |
+  |
+[summarize-activity]       ------------------------- 1 single inference converts `num` inputs into a single output.
+  |
+  |
+<output>                   ------------------------- the output is a list of summarize-activity.out model instances
 
-    
-    Note: Reduction is the coalescence of the all the elements of parallel chain's output into a single input for the next chainlink. This is necessary to come back to sequential execution.
+
+Note: Reduction is the coalescence of the all the elements of parallel chain's output into a single input for the next chainlink. This is necessary to come back to sequential execution.
 
 ```
 
-This completes the syntax and different transitions. Using these as basic building blocks, we can create complex chains with multiple steps and multiple transitions with parallelism naturally integrated into them.
+This completes an introduction to the syntax and different transitions involved in chains. Using these as basic building blocks, we can create complex chains with multiple steps and multiple transitions with parallelism naturally integrated into them.
 
 
 ## Feedback and Contact
