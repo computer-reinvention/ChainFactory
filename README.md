@@ -25,6 +25,24 @@ Make sure your OpenAI API key is set up in the environment variables:
    export OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
    ```
 
+## The Roadmap & TODOs
+
+- [x] implement defined reusable types
+- [x] accept direct kwargs in engine call
+- [x] implement bells and whistles for the prompt section
+- [x] implement default values
+- [x] implement field descriptions
+- [x] syntax: serial execution using @chainlink /name/ sequential
+- [x] basic documentation and walkthrough
+- [x] syntax: parallel execution using @chainlink /name/ ||
+  - [x] data piping and variable matching
+  - [x] sequential to parallel handover (split)
+  - [x] parallel execution in threadpool
+  - [x] parallel to parallel handover (map)
+  - [x] parallel to sequential handover (reduce)
+- [ ] python transpilation
+- [ ] typescript transpilation
+
 # The ChainFactory Specification
 **Draft 004**
 
@@ -152,7 +170,7 @@ An instance of the `ChainFactoryEngine` can then be directly called like a funct
 ``` python
 from chainfactory import ChainFactoryEngine
 
-haiky_generator = ChainFactoryEngine.from_file("haiku.fctr")
+engine = ChainFactoryEngine.from_file("haiku.fctr")
 
 results = engine(topic="Python", num=3) # this call will execute the chain and any subsequent chains after that
 ```
@@ -494,25 +512,6 @@ Here's the flow diagram. We finally have 3 transitions and 4 chainlinks.
 ```
 
 This completes the syntax and different transitions. Using these as basic building blocks, we can create complex chains with multiple steps and multiple transitions with parallelism naturally integrated into them.
-
-
-## The Roadmap & TODOs
-
-- [x] implement defined types
-- [x] accept direct kwargs in engine call
-- [x] implement bells and whistles for the prompt section
-- [x] implement default values
-- [x] implement field descriptions
-- [x] syntax: serial execution using @chainlink /name/ sequential
-- [x] basic documentation and walkthrough
-- [x] syntax: parallel execution using @chainlink /name/ ||
-  - [x] data piping and variable matching
-  - [x] sequential to parallel handover (split)
-  - [x] parallel execution in threadpool
-  - [x] parallel to parallel handover (map)
-  - [x] parallel to sequential handover (reduce)
-- [ ] python transpilation
-- [ ] typescript transpilation
 
 
 ## Feedback and Contact
