@@ -358,7 +358,7 @@ def:
     haiku: str
     explanation: str
 out:
-	topic: str % the original topic. required.
+  topic: str % the original topic. required.
   haikus : list[Haiku]
 
 # a concave transition between the two chainlinks
@@ -427,7 +427,7 @@ def:
     haiku: str
     explanation: str
 out:
-	topic: str % the original topic. required.
+  topic: str % the original topic. required.
   haikus : list[Haiku]
 
 # a concave transition between the two chainlinks
@@ -493,7 +493,8 @@ Here's the flow diagram. We finally have 3 transitions and 4 chainlinks.
   |
 [validator]                ------------------------- `num` inferences simultaneously in threadpool
   |
-  | (reduce)                   ------------------------- output elements reduced into a single input for next step. parallel -> sequential linking.
+  |
+(reduce)                   ------------------------- output elements reduced into a single input for next step. parallel -> sequential linking.
   |
   |
 [summarize-activity]       ------------------------- 1 single inference converts `num` inputs into a single output.
