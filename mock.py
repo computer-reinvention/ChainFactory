@@ -2,7 +2,7 @@ from pprint import pprint
 from chainfactory import Engine
 from langchain.globals import set_debug, set_verbose
 
-set_debug(False)
+set_debug(True)
 set_verbose(False)
 
 
@@ -196,4 +196,4 @@ def haiku_generate_review_validate_summary(topic="Python", num=2):
 
 
 if __name__ == "__main__":
-    haiku_generate_review_validate_summary(topic="modafinil", num=2)
+    haiku_generate_review_validate_summary(topic="modafinil", num=3)

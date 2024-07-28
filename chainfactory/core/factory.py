@@ -107,12 +107,17 @@ class ChainFactoryLink:
 
         if purpose:
             assert engine_cls
+
             with pkg_resources.open_text(
                 "chainfactory.chains", "generate_prompt_template.fctr"
             ) as file:
                 file_content = file.read()
 
                 engine = engine_cls.from_str(file_content)
+
+                print("------------- AUTO -------------")
+                print("Auto generating a prompt template...")
+                print("--------------------------------")
 
                 generated_prompt_template = engine(
                     purpose=purpose,
@@ -171,6 +176,9 @@ class ChainFactoryLink:
                     "chainfactory.chains", "generate_mask_template.fctr"
                 ) as file:
                     file_content = file.read()
+                    print("------------- AUTO -------------")
+                    print("Auto generating a mask template...")
+                    print("--------------------------------")
                     engine = engine_cls.from_str(file_content)
 
                     generated_mask_template = engine(

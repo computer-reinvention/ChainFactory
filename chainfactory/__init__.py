@@ -1,12 +1,12 @@
-from .interfaces.engine import ChainFactoryEngine, ChainFactoryEngineConfig
-from .types.factory import ChainFactory
-from .types.components import (
+from .core import ChainFactoryEngine, ChainFactoryEngineConfig
+from .core.factory import ChainFactory
+from .core.components import (
     FactoryDefinitions,
     FactoryPrompt,
     FactoryOutput,
     FactoryInput,
 )
-from .parsing.class_from_dict import create_class_from_dict
+from .core.parsing.class_from_dict import create_class_from_dict
 
 Engine = ChainFactoryEngine  # alias
 EngineConfig = ChainFactoryEngineConfig  # alias

@@ -4,13 +4,14 @@ from pprint import pprint
 from typing import Any, Literal
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 
 from langchain.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_core.runnables import RunnableSerializable
 
-from chainfactory.types.factory import ChainFactoryLink, ChainFactory
+from chainfactory.core.factory import ChainFactoryLink, ChainFactory
 
 
 @dataclass
@@ -21,11 +22,12 @@ class ChainFactoryEngineConfig:
 
     model: str = "gpt-4o"
     temperature: float = 0
+    cache: bool = True
     provider: Literal["openai", "anthropic"] = "openai"
     max_tokens: int = 1024
     model_kwargs: dict = field(default_factory=dict)
     max_parallel_chains: int = 10
-    print_trace: bool = True
+    print_trace: bool = False
     print_trace_for_single_chain: bool = False
 
 
@@ -78,7 +80,10 @@ class ChainFactoryEngine:
         trace = []
 
         try:
-            trace = self._execute_chains(chain_input)
+            if self.config.cache:
+                trace = self._execute_chains(chain_input)
+            else:
+                trace = self._cached_execute_chains(initial_input=chain_input)
         except ValueError as e:
             traceback.print_exc()
         finally:
@@ -276,6 +281,14 @@ class ChainFactoryEngine:
                 raise ValueError(
                     f"Invalid link type: {previous_link._link_type} for chain {previous['name']}"
                 )
+
+    @lru_cache(maxsize=1024, typed=True)
+    def _cached_execute_chains(self, initial_input: dict) -> list[dict]:
+        """
+        Execute the chains, while piping the outputs to successive chains.
+        """
+        print("ZXX: This should only appear once.")
+        return self._execute_chains(initial_input)
 
     def _execute_chains(self, initial_input: dict) -> list[dict]:
         """
