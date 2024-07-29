@@ -74,24 +74,17 @@ class ChainFactoryEngine:
             )
         elif len(args) == 1:
             chain_input = args[0]
-
         else:
             if len(kwargs) == 0:
                 raise ValueError(
                     "ChainFactoryEngine.__call__() requires at least one keyword argument or one positional argument."
                 )
-
             chain_input = kwargs
 
         trace = []
 
         try:
-            if self.config.cache:
-                # hashable_chain_input = frozenset(kwargs)
-                hashable_chain_input = hashable_dict(kwargs)
-                trace = self._cached_execute_chains(initial_input=hashable_chain_input)
-            else:
-                trace = self._execute_chains(initial_input=kwargs)
+            trace = self._execute_chains(initial_input=chain_input)
         except ValueError as e:
             traceback.print_exc()
         finally:
@@ -289,17 +282,6 @@ class ChainFactoryEngine:
                 raise ValueError(
                     f"Invalid link type: {previous_link._link_type} for chain {previous['name']}"
                 )
-
-    @lru_cache(maxsize=1024, typed=True)
-    def _cached_execute_chains(self, initial_input: hashable_dict) -> list[dict]:
-        """
-        Execute the chains, while piping the outputs to successive chains.
-        """
-        print(
-            "ZXX: This should only appear once. Other calls to this function should be cached."
-        )
-        print(initial_input)
-        return self._execute_chains(initial_input)
 
     def _execute_chains(self, initial_input: dict) -> list[dict]:
         """

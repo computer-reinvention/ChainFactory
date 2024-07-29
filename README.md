@@ -3,6 +3,7 @@
 ## Overview
 
 `ChainFactory` is a utility to build LLM chains by configuration instead of code. The chains produced this way are reproducible and easy to manage i.e read, edit and share.
+
 The chains can be executed using ChainFactoryEngine - making it possible to parallelize the execution wherever required.
 Besides the engine, ChainFactory also plans to eventually support transpilation to Python and JavaScript clients in the near future.
 
@@ -88,7 +89,7 @@ def:
 ```
 
 The models defined in the `def` section can be used with other inbuilt types and other defined models to enforce complex output structures.
-MARK
+
 ### Prompt
 The prompt template related options can be set under this section. The following fields are defined:
 
@@ -126,13 +127,15 @@ in:
   topic: str
 ```
 
-On running the chain containing the above definition, this prompt template is generated on the first invocation and used for the subsequent invocations. It is not cached and will be regenerated for every Factory object:
+On running the chain containing the above definition, this prompt template is generated on the first invocation and used for the subsequent invocations.
 
 ``` txt
 Generate {num} haikus on the topic of {topic}. Each haiku should follow the traditional 5-7-5 syllable structure.
 ```
 
-The benefit of using this approach is not that apparent when we have a small number of inputs. However, as the number of input variables goes up, defining the purpose in a single sentence and just listing the inputs is quite helpful and keeps the chain definition clean.
+Once generated, a unique hash is made from the `purpose` + `input_variables` combination. Using this hash as the key, the generated prompt is cached in `.chainfactory/cache` of your root project and will be reused for subsequent invocations unless the stated `purpose` or the listed input variables are changed.
+
+The advantage of using this approach is not that apparent when we have a small number of inputs. However, as the number of input variables goes up, defining the purpose in a single sentence and just listing the inputs is quite helpful and keeps the chain definition clean.
 
 **Side Note**: In future, the generated prompt can be automatically optimized using something like `DSpy` - which would then make this way of defining the chain superior than writing prompts manually for all cases.
 
