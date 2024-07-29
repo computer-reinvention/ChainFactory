@@ -3,7 +3,7 @@ from typing import Any, Literal
 
 from langchain.pydantic_v1 import BaseModel, Field
 
-from ..parsing.class_from_dict import create_class_from_dict
+from .parsing.class_from_dict import create_class_from_dict
 
 
 class FactoryMask:
@@ -36,6 +36,7 @@ class FactoryMask:
                 raise ValueError("FactoryMask cannot be initialized without variables.")
 
         for var in variables:
+            print("VARIABLE IN: ", var)
             if "." in var:
                 original = var
                 cleaned = var.replace(".", "$")
@@ -46,6 +47,10 @@ class FactoryMask:
                 )
             else:
                 self.variables.append(var)
+                self.template = self.template.replace("{" + var + "}", "{" + var + "}")
+
+            print("VARIABLE CLEANED: ", self.variables[-1])
+            print("RENDERED: ", self.template)
 
     def render(self, variables: dict[str, Any]) -> str:
         """
@@ -53,6 +58,7 @@ class FactoryMask:
         """
         assert self.template
         rendered = self.template
+
         for var, value in variables.items():
             rendered = rendered.replace("{" + var + "}", str(value))
 

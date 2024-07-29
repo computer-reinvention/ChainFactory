@@ -4,13 +4,14 @@ from pprint import pprint
 from typing import Any, Literal
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 
 from langchain.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_core.runnables import RunnableSerializable
 
-from chainfactory.types.factory import ChainFactoryLink, ChainFactory
+from chainfactory.core.factory import ChainFactoryLink, ChainFactory
 
 
 @dataclass
@@ -21,12 +22,19 @@ class ChainFactoryEngineConfig:
 
     model: str = "gpt-4o"
     temperature: float = 0
+    cache: bool = False
     provider: Literal["openai", "anthropic"] = "openai"
     max_tokens: int = 1024
     model_kwargs: dict = field(default_factory=dict)
     max_parallel_chains: int = 10
-    print_trace: bool = True
+    print_trace: bool = False
     print_trace_for_single_chain: bool = False
+
+
+class hashable_dict(dict):
+    def __hash__(self):
+        values = sorted([str(v) for _, v in self.items()])
+        return hash(values)
 
 
 class ChainFactoryEngine:
@@ -66,19 +74,17 @@ class ChainFactoryEngine:
             )
         elif len(args) == 1:
             chain_input = args[0]
-
         else:
             if len(kwargs) == 0:
                 raise ValueError(
                     "ChainFactoryEngine.__call__() requires at least one keyword argument or one positional argument."
                 )
-
             chain_input = kwargs
 
         trace = []
 
         try:
-            trace = self._execute_chains(chain_input)
+            trace = self._execute_chains(initial_input=chain_input)
         except ValueError as e:
             traceback.print_exc()
         finally:
@@ -398,11 +404,16 @@ class ChainFactoryEngine:
         cls,
         file_path: str,
         config: ChainFactoryEngineConfig = ChainFactoryEngineConfig(),
+        **kwargs,
     ) -> "ChainFactoryEngine":
         """
         Create a ChainFactoryEngine from a file.
         """
-        factory = ChainFactory.from_file(file_path, engine_cls=cls)
+        factory = ChainFactory.from_file(
+            file_path,
+            internal_engine_cls=kwargs.get("internal_engine_cls", cls),
+            internal_engine_config=kwargs.get("internal_engine_config", config),
+        )
 
         return cls(factory, config)
 
@@ -411,10 +422,15 @@ class ChainFactoryEngine:
         cls,
         content: str,
         config: ChainFactoryEngineConfig = ChainFactoryEngineConfig(),
+        **kwargs,
     ) -> "ChainFactoryEngine":
         """
         Create a ChainFactoryEngine from a file.
         """
-        factory = ChainFactory.from_str(content, engine_cls=cls)
+        factory = ChainFactory.from_str(
+            content,
+            internal_engine_cls=kwargs.get("internal_engine_cls", cls),
+            internal_engine_config=kwargs.get("internal_engine_config", config),
+        )
 
         return cls(factory, config)

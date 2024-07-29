@@ -1,5 +1,6 @@
 from pprint import pprint
 from chainfactory import Engine
+from chainfactory.core.engine.chainfactory_engine import ChainFactoryEngineConfig
 from langchain.globals import set_debug, set_verbose
 
 set_debug(False)
@@ -196,4 +197,13 @@ def haiku_generate_review_validate_summary(topic="Python", num=2):
 
 
 if __name__ == "__main__":
-    haiku_generate_review_validate_summary(topic="modafinil", num=2)
+    config = ChainFactoryEngineConfig(
+        temperature=0.5,
+        print_trace=True,
+        print_trace_for_single_chain=True,
+    )
+    engine = Engine.from_file(
+        "examples/random_haiku.fctr", config=config, internal_engine_config=config
+    )
+
+    res = engine(num=5)
