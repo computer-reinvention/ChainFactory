@@ -22,13 +22,19 @@ class ChainFactoryEngineConfig:
 
     model: str = "gpt-4o"
     temperature: float = 0
-    cache: bool = True
+    cache: bool = False
     provider: Literal["openai", "anthropic"] = "openai"
     max_tokens: int = 1024
     model_kwargs: dict = field(default_factory=dict)
     max_parallel_chains: int = 10
     print_trace: bool = False
     print_trace_for_single_chain: bool = False
+
+
+class hashable_dict(dict):
+    def __hash__(self):
+        values = sorted([str(v) for _, v in self.items()])
+        return hash(values)
 
 
 class ChainFactoryEngine:
@@ -81,9 +87,11 @@ class ChainFactoryEngine:
 
         try:
             if self.config.cache:
-                trace = self._execute_chains(chain_input)
+                # hashable_chain_input = frozenset(kwargs)
+                hashable_chain_input = hashable_dict(kwargs)
+                trace = self._cached_execute_chains(initial_input=hashable_chain_input)
             else:
-                trace = self._cached_execute_chains(initial_input=chain_input)
+                trace = self._execute_chains(initial_input=kwargs)
         except ValueError as e:
             traceback.print_exc()
         finally:
@@ -283,11 +291,14 @@ class ChainFactoryEngine:
                 )
 
     @lru_cache(maxsize=1024, typed=True)
-    def _cached_execute_chains(self, initial_input: dict) -> list[dict]:
+    def _cached_execute_chains(self, initial_input: hashable_dict) -> list[dict]:
         """
         Execute the chains, while piping the outputs to successive chains.
         """
-        print("ZXX: This should only appear once.")
+        print(
+            "ZXX: This should only appear once. Other calls to this function should be cached."
+        )
+        print(initial_input)
         return self._execute_chains(initial_input)
 
     def _execute_chains(self, initial_input: dict) -> list[dict]:
@@ -411,11 +422,16 @@ class ChainFactoryEngine:
         cls,
         file_path: str,
         config: ChainFactoryEngineConfig = ChainFactoryEngineConfig(),
+        **kwargs,
     ) -> "ChainFactoryEngine":
         """
         Create a ChainFactoryEngine from a file.
         """
-        factory = ChainFactory.from_file(file_path, engine_cls=cls)
+        factory = ChainFactory.from_file(
+            file_path,
+            internal_engine_cls=kwargs.get("internal_engine_cls", cls),
+            internal_engine_config=kwargs.get("internal_engine_config", config),
+        )
 
         return cls(factory, config)
 
@@ -424,10 +440,15 @@ class ChainFactoryEngine:
         cls,
         content: str,
         config: ChainFactoryEngineConfig = ChainFactoryEngineConfig(),
+        **kwargs,
     ) -> "ChainFactoryEngine":
         """
         Create a ChainFactoryEngine from a file.
         """
-        factory = ChainFactory.from_str(content, engine_cls=cls)
+        factory = ChainFactory.from_str(
+            content,
+            internal_engine_cls=kwargs.get("internal_engine_cls", cls),
+            internal_engine_config=kwargs.get("internal_engine_config", config),
+        )
 
         return cls(factory, config)

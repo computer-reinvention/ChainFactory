@@ -1,0 +1,1 @@
+{"chainlink": "topic-generator", "purpose": "to generate random topics for creating haikus", "input_variables": ["num"], "prompt_template": "Generate {num} random topics for creating haikus.", "ts": "2024-07-29T07:00:02.374377"}

@@ -1,0 +1,1 @@
+{"chainlink": "generate-topics", "purpose": "brainstorm creative haiku topics", "input_variables": ["num"], "prompt_template": "Generate {num} creative haiku topics. Ensure the topics are diverse and inspire imaginative poetry.", "ts": "2024-07-29T07:09:47.641585"}

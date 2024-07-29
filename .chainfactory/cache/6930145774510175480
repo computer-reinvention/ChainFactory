@@ -1,0 +1,1 @@
+{"chainlink": "generate-haiku", "purpose": "generating beautiful haikus", "input_variables": ["topics.element"], "prompt_template": "Write a beautiful haiku about {topics.element}. Make sure it captures the essence and beauty of the subject in a traditional 5-7-5 syllable format.", "ts": "2024-07-29T07:09:48.773560"}

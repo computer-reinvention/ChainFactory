@@ -2,12 +2,17 @@
 This module defines the core `Factory` type representation.
 """
 
+from datetime import datetime
+import time
 import uuid
 import yaml
+import farmhash
 from typing import Any, Optional
 from dataclasses import dataclass
 from typing import Any, Optional, Literal
 import importlib.resources as pkg_resources
+
+from chainfactory.core.utils import load_cache_file, save_cache_file
 
 from .components import (
     FactoryDefinitions,
@@ -31,6 +36,7 @@ class ChainFactoryLink:
     definitions: Optional[FactoryDefinitions]
     output: Optional[FactoryOutput]
     prompt: Optional[FactoryPrompt]
+    mask: Optional[FactoryMask]
 
     def __init__(
         self,
@@ -50,7 +56,7 @@ class ChainFactoryLink:
         self.definitions: Optional[FactoryDefinitions] = definitions  # section `def`
         self.prompt: Optional[FactoryPrompt] = prompt  # section `prompt`
         self.mask: Optional[FactoryMask] = (
-            mask  # section `mask` (only for convex chains)
+            mask  # section `mask` (only for convex chainlinks)
         )
         self.output: Optional[FactoryOutput] = output  # section `out`
         self._link_type = link_type
@@ -64,7 +70,8 @@ class ChainFactoryLink:
         link_type: Literal["sequential", "parallel"] = "sequential",
         mask: Optional[FactoryMask] = None,
         convex: bool = False,
-        engine_cls: Any | None = None,
+        internal_engine_cls: Any | None = None,
+        internal_engine_config: Any | None = None,
     ) -> "ChainFactoryLink":
         """
         Parse the source .fctr file into a `ChainFactoryLink` object.
@@ -102,33 +109,72 @@ class ChainFactoryLink:
         if not prompt and not purpose:
             raise ValueError("Neither purpose nor a prompt template were provided.")
 
-        factory_input = None if not input else FactoryInput(attributes=input)
+        factory_input = (
+            None
+            if not input
+            else FactoryInput(
+                attributes=input,
+            )
+        )
         input_variables = None if not factory_input else factory_input.input_variables
 
         if purpose:
-            assert engine_cls
-
-            with pkg_resources.open_text(
-                "chainfactory.chains", "generate_prompt_template.fctr"
-            ) as file:
-                file_content = file.read()
-
-                engine = engine_cls.from_str(file_content)
-
-                print("------------- AUTO -------------")
-                print("Auto generating a prompt template...")
-                print("--------------------------------")
-
-                generated_prompt_template = engine(
-                    purpose=purpose,
-                    input_variables=[name] if convex else input_variables,
-                ).prompt_template
-
+            cachekey = str(
+                farmhash.FarmHash64(
+                    purpose + ",".join([name] if convex else sorted(input_variables)),
+                )
+            )
+            if cached := load_cache_file(cachekey):
+                print(
+                    f"[{name}]",
+                    "Loading prompt template from file cached for purpose:",
+                    purpose,
+                    f"({cachekey})",
+                )
                 factory_prompt = FactoryPrompt(
-                    template=generated_prompt_template,
+                    template=cached.get("prompt_template"),
                     purpose=purpose,
                     input_variables=input_variables,
                 )
+            else:
+                assert internal_engine_cls
+                assert internal_engine_config
+
+                with pkg_resources.open_text(
+                    "chainfactory.chains", "generate_prompt_template.fctr"
+                ) as file:
+                    file_content = file.read()
+                    print(
+                        f"[{name}]",
+                        "Generating new prompt template for purpose:",
+                        purpose,
+                        f"({cachekey})",
+                    )
+                    engine = internal_engine_cls.from_str(
+                        file_content,
+                        config=internal_engine_config,
+                    )
+                    generated_prompt_template = engine(
+                        purpose=purpose,
+                        input_variables=[name] if convex else input_variables,
+                    ).prompt_template
+
+                    save_cache_file(
+                        cachekey,
+                        {
+                            "chainlink": name,
+                            "purpose": purpose,
+                            "input_variables": input_variables,
+                            "prompt_template": generated_prompt_template,
+                            "ts": datetime.now().isoformat(),
+                        },
+                    )
+
+                    factory_prompt = FactoryPrompt(
+                        template=generated_prompt_template,
+                        purpose=purpose,
+                        input_variables=input_variables,
+                    )
         elif prompt:
             factory_prompt = FactoryPrompt(
                 template=prompt["template"],
@@ -171,24 +217,45 @@ class ChainFactoryLink:
                     "FactoryMask.variables cannot be empty when type is auto."
                 )
             elif not template:
-                assert engine_cls
-                with pkg_resources.open_text(
-                    "chainfactory.chains", "generate_mask_template.fctr"
-                ) as file:
-                    file_content = file.read()
-                    print("------------- AUTO -------------")
-                    print("Auto generating a mask template...")
-                    print("--------------------------------")
-                    engine = engine_cls.from_str(file_content)
-
-                    generated_mask_template = engine(
-                        variables=variables,
-                    ).template
-
+                cachekey = str(farmhash.FarmHash64(str(sorted(variables))))
+                if cached := load_cache_file(cachekey):
                     factory_mask = FactoryMask(
-                        template=generated_mask_template,
+                        template=cached.get("mask_template"),
                         variables=variables,
                     )
+                else:
+                    assert internal_engine_cls
+                    assert internal_engine_config
+
+                    with pkg_resources.open_text(
+                        "chainfactory.chains", "generate_mask_template.fctr"
+                    ) as file:
+                        file_content = file.read()
+
+                        print(f"[{name}]" "Generating mask template for:", variables)
+
+                        engine = internal_engine_cls.from_str(
+                            file_content, config=internal_engine_config
+                        )
+
+                        generated_mask_template = engine(
+                            variables=variables,
+                        ).template
+
+                        factory_mask = FactoryMask(
+                            template=generated_mask_template,
+                            variables=variables,
+                        )
+
+                        save_cache_file(
+                            cachekey,
+                            {
+                                "chainlink": name,
+                                "variables": variables,
+                                "mask_template": generated_mask_template,
+                                "ts": datetime.now().isoformat(),
+                            },
+                        )
             else:
                 factory_mask = FactoryMask(
                     template=mask.get("template"),
@@ -221,9 +288,16 @@ class ChainFactory:
     """
 
     links: list[ChainFactoryLink]
+    internal_engine_cls: Any = None
+    internal_engine_config: Any = None
 
     @classmethod
-    def from_file(cls, file_path: str, engine_cls: Any | None = None) -> "ChainFactory":
+    def from_file(
+        cls,
+        file_path: str,
+        internal_engine_cls: Any | None = None,
+        internal_engine_config: Any | None = None,
+    ) -> "ChainFactory":
         """
         Parse the source .fctr file into a `Factory` object.
 
@@ -237,16 +311,28 @@ class ChainFactory:
         with open(file_path, "r") as file:
             content = file.read()
 
-        return cls.from_str(content, engine_cls=engine_cls)
+        return cls.from_str(
+            content,
+            internal_engine_cls=internal_engine_cls,
+            internal_engine_config=internal_engine_config,
+        )
 
     @classmethod
-    def from_str(cls, content: str, engine_cls: Any | None = None) -> "ChainFactory":
+    def from_str(
+        cls,
+        content: str,
+        path: str | None = None,
+        internal_engine_cls: Any | None = None,
+        internal_engine_config: Any | None = None,
+    ) -> "ChainFactory":
         """
         Parse the content of a .fctr file into a `ChainFactory` object.
 
         Args:
             content (str): The content of the .fctr file.
-            engine_cls (Any): The engine class to generate the prompt template from purpose.
+            path (str): The path to the .fctr file. Used for caching generated prompts and masks.
+            internal_engine_cls (Any): The engine class to generate the prompt template from purpose.
+            internal_engine_config (Any): The engine config to generate the prompt template from purpose.
 
         Returns:
             Factory: The parsed `ChainFactory` object.
@@ -259,7 +345,9 @@ class ChainFactory:
             return cls(
                 links=[
                     ChainFactoryLink.from_file(
-                        name="chainlink-0", file_content=content
+                        name="chainlink-0",
+                        file_content=content,
+                        file_path=path,
                     ),
                 ]
             )
@@ -347,7 +435,8 @@ class ChainFactory:
                 file_content="\n".join(part["lines"]).replace("\t", "  "),
                 link_type=part["link_type"],
                 convex=convex,
-                engine_cls=engine_cls,
+                internal_engine_cls=internal_engine_cls,
+                internal_engine_config=internal_engine_config,
             )
 
             if previous_link and previous_link._link_type == "parallel":
@@ -381,4 +470,8 @@ class ChainFactory:
             previous_link = link
             chainlinks.append(link)
 
-        return cls(links=chainlinks)
+        return cls(
+            links=chainlinks,
+            internal_engine_cls=internal_engine_cls,
+            internal_engine_config=internal_engine_config,
+        )
