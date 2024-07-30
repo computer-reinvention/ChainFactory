@@ -31,12 +31,6 @@ class ChainFactoryEngineConfig:
     print_trace_for_single_chain: bool = False
 
 
-class hashable_dict(dict):
-    def __hash__(self):
-        values = sorted([str(v) for _, v in self.items()])
-        return hash(values)
-
-
 class ChainFactoryEngine:
     def __init__(
         self,
@@ -111,7 +105,14 @@ class ChainFactoryEngine:
         """
         chain: RunnableSerializable = current["chain"]
         link: ChainFactoryLink = current["link"]
-        previous_output = previous["output"]
+        previous_link: ChainFactoryLink = previous["link"]
+        previous_output: dict = previous["output"]
+        previous_link_type: Literal["sequential", "parallel"]
+
+        if not previous_link:
+            previous_link_type = "sequential"
+        else:
+            previous_link_type = previous_link._link_type
 
         matching_vars = []
         matching_list_vars = []
@@ -135,7 +136,7 @@ class ChainFactoryEngine:
                 varsplit = var.split("$")
                 if varsplit[0] == "element":
                     raise ValueError(
-                        f"Field address cannot start with 'element' in {var}."
+                        f"Field address cannot start with 'element' in {link._name}."
                     )
 
                 if varsplit[0] not in previous_output:
@@ -273,10 +274,6 @@ class ChainFactoryEngine:
                         f"Piping failed. No matching variables found for linking chains {previous['name']} -> {current['name']}. Please note that this is a convex chain and hence the matching variables are determined by the mask."
                     )
 
-                print("=====================")
-                print("Convex Chain Input:")
-                pprint(input)
-                print("=====================")
                 return chain.invoke(input)
             case _:
                 raise ValueError(

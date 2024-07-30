@@ -232,7 +232,9 @@ class ChainFactoryLink:
                     ) as file:
                         file_content = file.read()
 
-                        print(f"[{name}]" "Generating mask template for:", variables)
+                        print(
+                            f"[{name}]", "Generating new mask template for:", variables
+                        )
 
                         engine = internal_engine_cls.from_str(
                             file_content, config=internal_engine_config
@@ -451,7 +453,11 @@ class ChainFactory:
                             if var.startswith(previous_link._name):
                                 continue
 
-                            full_var = f"{previous_link._name}$element${var}"
+                            if var.startswith("element"):
+                                full_var = f"{previous_link._name}${var}"
+                            else:
+                                full_var = f"{previous_link._name}$element${var}"
+
                             updated_input_variables.append(full_var)
                             link.prompt.template = link.prompt.template.replace(
                                 "{" + var + "}",
