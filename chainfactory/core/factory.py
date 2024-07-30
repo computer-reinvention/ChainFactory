@@ -32,7 +32,7 @@ class ChainFactoryLink:
     _source: Optional[str]
     _parsed_source: Optional[Any]
     _link_type: Literal["sequential", "parallel"] = "sequential"
-
+    global_definitions: Optional[FactoryDefinitions]
     definitions: Optional[FactoryDefinitions]
     output: Optional[FactoryOutput]
     prompt: Optional[FactoryPrompt]
@@ -68,8 +68,8 @@ class ChainFactoryLink:
         file_path: str | None = None,
         file_content: str | None = None,
         link_type: Literal["sequential", "parallel"] = "sequential",
-        mask: Optional[FactoryMask] = None,
         convex: bool = False,
+        global_defs: FactoryDefinitions | None = None,
         internal_engine_cls: Any | None = None,
         internal_engine_config: Any | None = None,
     ) -> "ChainFactoryLink":
@@ -187,12 +187,15 @@ class ChainFactoryLink:
             )
 
         factory_defs = None if not defs else FactoryDefinitions(definitions=defs)
+        if factory_defs and global_defs:
+            factory_defs.extend(global_defs)
+
         factory_output = (
             None
             if not output
             else FactoryOutput(
                 attributes=output,
-                definitions=None if not factory_defs else factory_defs.defined_types,
+                definitions=(None if not factory_defs else factory_defs.defined_types),
             )
         )
 
@@ -290,6 +293,7 @@ class ChainFactory:
     """
 
     links: list[ChainFactoryLink]
+    definitions: FactoryDefinitions = FactoryDefinitions()
     internal_engine_cls: Any = None
     internal_engine_config: Any = None
 
@@ -332,7 +336,7 @@ class ChainFactory:
 
         Args:
             content (str): The content of the .fctr file.
-            path (str): The path to the .fctr file. Used for caching generated prompts and masks.
+            path (str): The path to the .fctr file. Can be used as an alternative to content.
             internal_engine_cls (Any): The engine class to generate the prompt template from purpose.
             internal_engine_config (Any): The engine config to generate the prompt template from purpose.
 
@@ -417,6 +421,7 @@ class ChainFactory:
 
         chainlinks = []
         previous_link = None
+        global_defs = FactoryDefinitions()
         for name, part in parts.items():
             if not part["lines"]:
                 raise ValueError(
@@ -437,6 +442,7 @@ class ChainFactory:
                 file_content="\n".join(part["lines"]).replace("\t", "  "),
                 link_type=part["link_type"],
                 convex=convex,
+                global_defs=global_defs,
                 internal_engine_cls=internal_engine_cls,
                 internal_engine_config=internal_engine_config,
             )
@@ -476,8 +482,12 @@ class ChainFactory:
             previous_link = link
             chainlinks.append(link)
 
+            if link.definitions:
+                global_defs.extend(link.definitions)
+
         return cls(
             links=chainlinks,
+            definitions=global_defs,
             internal_engine_cls=internal_engine_cls,
             internal_engine_config=internal_engine_config,
         )

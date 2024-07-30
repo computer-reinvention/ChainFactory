@@ -79,11 +79,25 @@ class FactoryDefinitions:
     This type is the representation of the `def` section of a chain factory file. It contains defined types.
     """
 
-    defined_types: dict[str, type]
-    definitions: dict[str, Any]
+    defined_types: dict[str, type] = {}
+    definitions: dict[str, dict] = {}
 
-    def __init__(self, definitions: dict[str, dict]):
-        self.defined_types = {}
+    def __init__(
+        self,
+        definitions: dict[str, dict] | None = None,
+        types: dict[str, type] | None = None,
+    ):
+        if types:
+            self.defined_types = types
+
+            if definitions:
+                self.definitions = definitions
+
+            return
+
+        if not definitions:
+            return
+
         self.definitions = definitions
 
         for name, definition in definitions.items():
@@ -94,6 +108,13 @@ class FactoryDefinitions:
                 defined_types=self.defined_types,
                 default_value_class=Field,
             )
+
+    def extend(self, definitions: "FactoryDefinitions"):
+        """
+        Extend the factory definitions with the another FactoryDefinitions object.
+        """
+        self.defined_types.update(definitions.defined_types)
+        self.definitions.update(definitions.definitions)
 
 
 class FactoryInput:
