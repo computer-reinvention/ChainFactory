@@ -79,7 +79,7 @@ class ChainFactoryEngine:
 
         try:
             trace = self._execute_chains(initial_input=chain_input)
-        except ValueError as e:
+        except ValueError:
             traceback.print_exc()
         finally:
             if self.config.print_trace:
@@ -97,6 +97,7 @@ class ChainFactoryEngine:
         elif kwargs.get("return_trace", False):
             return trace
 
+        # we return the output of the last run
         return trace[-1]["output"]
 
     def _execute_parallel_chain(self, previous: dict, current: dict) -> list:
