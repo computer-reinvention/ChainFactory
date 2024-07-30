@@ -1,13 +1,40 @@
-# ChainFactory: Run Structured LLM Inference with Easy Parallelism (`chainfactory-py 0.0.10`)
+# ChainFactory: Run Structured LLM Inference with Easy Parallelism (`chainfactory-py 0.0.11`)
 
 ## Overview
 
-`ChainFactory` is a utility to build LLM chains by configuration instead of code. The chains produced this way are reproducible and easy to manage i.e read, edit and share.
+`ChainFactory` is a utility that runs LLM chains by configuration instead of code. The config formt is basically a slightly modified `.yaml` which I am calling `.fctr` (too cheesy?). Here's how a chain definition looks like:
 
-The chains can be executed using ChainFactoryEngine - making it possible to parallelize the execution wherever required.
-Besides the engine, ChainFactory also plans to eventually support transpilation to Python and JavaScript clients in the near future.
+``` yaml
+# file: examples/haiku_purpose.fctr
+purpose: to generate haikus
 
-**Side Note**: This allows a very interesting pattern where you can create chains during runtime and combine their outputs to do interesting things that are not possible with the standard code defined chains.
+def:
+  Haiku:
+    haiku: str
+    explanation: str
+    topic: str
+
+in:
+  num: int
+  topic: str
+
+out:
+  haikus : list[Haiku] # structured output, types auto generated at runtime
+```
+
+**TLDR**: Here's what ChainFactory can do to simplify the handling of your LLM chains:
+
+- **Auto-generation of prompts** using a purpose and stating the inputs.
+- Effortless **movement of data between multi step chains**. 
+- **Automatic filtering and mapping** the **output** data from one chain **to the inputs** of the next chain.
+- As of right now, ChainFactory is **easiest way to get structured, and strictly typed outputs** from your LLM chains. (Let me know if you have come across any better solutions)
+- **Parallel execution** is like second nature to ChainFactory as it was the **original problem I created it to solve**.
+- **Seamless transitions** from **sequential** to **parallel** modes and vice versa.
+- **Avoid** the need to use **prompting tricks** and writing paragraphs of text to **convince the model** (beg) to do what you want.
+
+The chains produced this way are reproducible and easy to manage i.e read, edit and share. They can be loaded and executed using ChainFactoryEngine. Besides the engine, I also plans to eventually add transpilation to Python and JavaScript clients soon.
+
+**Note**: A very interesting pattern is possible here: you can generate and execute use-case tailored chains dynamically during runtime. The generation of these chains could itself be a chainfactory chain.
 
 ## Installation
 Using `pip` or [https://python-poetry.org/](poetry) as follows:
@@ -41,11 +68,14 @@ Make sure your OpenAI API key is set up in the environment variables:
   - [x] parallel execution in threadpool
   - [x] parallel to parallel handover (map)
   - [x] parallel to sequential handover (reduce)
-- [ ] python transpilation
-- [ ] typescript transpilation
+- [ ] a lot of syntax tweaking (ongoing)
+- [x] optimizations such as hash based caching for internal generation of prompts
+
+- [ ] python transpilation (maybe)
+- [ ] typescript transpilation (maybe)
 
 # The ChainFactory Specification
-**Draft 004**
+**Draft 004a**
 
 ## File Structure
 A `.fctr` file is mostly written in  `.yaml` syntax. Multiple steps can be defined in a single file by separating them with a `@chainlink [name] [type]` directive.
@@ -110,11 +140,12 @@ Usually you would use a shorthand for the above as follows:
 ```
 prompt: Write a haiku about {topic}
 ```
-
 Additionally, the following shorthand can be used for auto mode:
 ```
 purpose: "to generate haikus" # the file should contain the in field
 ```
+The prompts that are internally generated are cached in `.chainfactory/cache` of your root project and will be reused for subsequent invocations unless the stated `purpose` or the listed input variables are changed. To achieve this a hash is created from the `purpose` + `input_variables` combination. This hash only changes when the `purpose` or the listed input variables are changed. The hashing function is `farmhash.FarmHash64` - suitable for hashing large strings such as ours.
+
 ### In
 This section defines the input variables for this chain. It is only required when the prompt is set to `auto` mode. ChainFactory will automatically generate a prompt using `purpose` and the input variables for the chain on the first invocation.
 
