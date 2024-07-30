@@ -1,23 +1,20 @@
-# ChainFactory: Run Structured LLM Inference with Easy Parallelism (`chainfactory-py 0.0.11`)
+ß# ChainFactory: Run Structured LLM Inference with Easy Parallelism (`chainfactory-py 0.0.11`)
 
 ## Overview
 
-`ChainFactory` is a utility that runs LLM chains by configuration instead of code. The config formt is basically a slightly modified `.yaml` which I am calling `.fctr` (too cheesy?). Here's how a chain definition looks like:
+`ChainFactory` is a utility that runs LLM chains by configuration instead of code. The config format is basically slightly modified `.yaml` which I am calling `.fctr` (too cheesy?). Here's how a 1-step chain looks like:
 
 ``` yaml
 # file: examples/haiku_purpose.fctr
 purpose: to generate haikus
-
 def:
   Haiku:
     haiku: str
     explanation: str
     topic: str
-
 in:
   num: int
   topic: str
-
 out:
   haikus : list[Haiku] # structured output, types auto generated at runtime
 ```
@@ -25,16 +22,16 @@ out:
 **TLDR**: Here's what ChainFactory can do to simplify the handling of your LLM chains:
 
 - **Auto-generation of prompts** using a purpose and stating the inputs.
-- Effortless **movement of data between multi step chains**. 
+- Effortless **flow of data between multi step chains**. 
 - **Automatic filtering and mapping** the **output** data from one chain **to the inputs** of the next chain.
-- As of right now, ChainFactory is **easiest way to get structured, and strictly typed outputs** from your LLM chains. (Let me know if you have come across any better solutions)
-- **Parallel execution** is like second nature to ChainFactory as it was the **original problem I created it to solve**.
-- **Seamless transitions** from **sequential** to **parallel** modes and vice versa.
-- **Avoid** the need to use **prompting tricks** and writing paragraphs of text to **convince the model** (beg) to do what you want.
+- As of right now, ChainFactory is **the easiest way to get structured, and strictly typed outputs** from your LLM chains. (Let me know if you have come across any better solutions)
+- **Parallel execution** is like second nature to ChainFactory as it was the **reason it was created for.**.
+- **Seamless transitions** from **sequential** to **parallel** execution modes and vice versa.
+- **Avoid** the need to use **vague prompting tricks and heurestics** and **writing paragraphs** of text to **convince the model** (beg) to do what you want.
 
-The chains produced this way are reproducible and easy to manage i.e read, edit and share. They can be loaded and executed using ChainFactoryEngine. Besides the engine, I also plans to eventually add transpilation to Python and JavaScript clients soon.
+The chains produced this way are reproducible and easy to manage i.e read, edit and share. They can be loaded and executed using the `ChainFactoryEngine` class which can be directly called like a function once instantiated. Besides the engine, I also plan to eventually add transpilation to Python and JavaScript clients if it seems like a sensible direction.
 
-**Note**: A very interesting pattern is possible here: you can generate and execute use-case tailored chains dynamically during runtime. The generation of these chains could itself be a chainfactory chain.
+**Note**: A very interesting pattern is possible here because of defining the chains via config: you can generate and execute use-case tailored chains with arbitrary number of steps, dynamically during runtime. The generator of these chains could itself be a chainfactory chain.
 
 ## Installation
 Using `pip` or [https://python-poetry.org/](poetry) as follows:
@@ -68,8 +65,12 @@ Make sure your OpenAI API key is set up in the environment variables:
   - [x] parallel execution in threadpool
   - [x] parallel to parallel handover (map)
   - [x] parallel to sequential handover (reduce)
-- [ ] a lot of syntax tweaking (ongoing)
 - [x] optimizations such as hash based caching for internal generation of prompts
+- [ ] a lot of syntax tweaking (ongoing)
+- [ ] implement enum types in defs and outs
+- [ ] support for few shot prompting using example providers
+- [ ] implement streaming mode
+- [ ] implement example chain that generates valid chainfactory chains
 
 - [ ] python transpilation (maybe)
 - [ ] typescript transpilation (maybe)
@@ -77,12 +78,9 @@ Make sure your OpenAI API key is set up in the environment variables:
 # The ChainFactory Specification
 **Draft 004a**
 
-## File Structure
-A `.fctr` file is mostly written in  `.yaml` syntax. Multiple steps can be defined in a single file by separating them with a `@chainlink [name] [type]` directive.
+## About `.fctr`
+A `.fctr` file is mostly written in  `.yaml` syntax. Multiple steps can be defined in a single file by separating them with a `@chainlink [name] [type]` directive. This is where it diverges from YAML. The `@chainlink` directive allows us to repeat root level keys (def, in, out) which is invalid in YAML.
 
-- Specify the Prompt Template or list the Inputs (field: purpose + in or prompt)
-- Define output models (keyword: def)
-- Specify the Outputs (keyword: out)
 
 ## Typing
 The typing system takes direct inspiration from Python's type annotations with some added syntax to add descriptions. The following atomic types are supported:
