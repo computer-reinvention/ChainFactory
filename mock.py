@@ -100,50 +100,7 @@ def haiku_generate_review_validate(topic="Python", num=2):
         "examples/haiku_generate_review_validate.fctr"
     )
 
-    res = haiku_review_engine(topic=topic, num=1)
-
-    for item in res:
-        print("==================")
-        print("Haiku:")
-        print(item.haiku)
-        print("\n")
-        print("Review:")
-        print(item.review)
-        print("\n")
-        print("Validation:", item.valid)
-        print("Reason:", item.reasoning)
-        print("==================\n\n\n")
-
-
-def haiku_generate_review_validate(topic="Python", num=2):
-    """
-    Demonstrates how to create a chain with 3 steps and these types of links:
-
-    <input>           ------------------------- the initial values. (topic, num in this case)
-      |
-    [haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
-      |
-    (split)           ------------------------- output split into `num` inputs for next step. sequential -> parallel linking.
-      |
-    [haiku-critic]    ------------------------- parallel (`num` inferences simultaneously in threadpool)
-      |
-    (map)             ------------------------- output elements mapped into inputs for next step. parallel -> parallel linking.
-      |
-    [validator]       ------------------------- parallel (`num` inferences simultaneously in threadpool)
-      |
-    <output>          ------------------------- the output is a list of validator.out model instances
-
-    Note: Mapping is a slightly complex form of filtering. It is applied on all elements of previous chain's output at once.
-
-    Args:
-        topic (str, optional): The topic of the haiku. Defaults to "Python".
-        num (int, optional): The number of haikus to generate. Defaults to 2.
-    """
-    haiku_review_engine = Engine.from_file(
-        "examples/haiku_generate_review_validate.fctr"
-    )
-
-    res = haiku_review_engine(topic=topic, num=1)
+    res = haiku_review_engine(topic=topic, num=num)
 
     for item in res:
         print("==================")
@@ -197,13 +154,4 @@ def haiku_generate_review_validate_summary(topic="Python", num=2):
 
 
 if __name__ == "__main__":
-    config = ChainFactoryEngineConfig(
-        temperature=0.5,
-        print_trace=True,
-        print_trace_for_single_chain=True,
-    )
-    engine = Engine.from_file(
-        "examples/random_haiku.fctr", config=config, internal_engine_config=config
-    )
-
-    res = engine(num=5)
+    haiku_generate_review_validate()
