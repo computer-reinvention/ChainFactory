@@ -30,7 +30,7 @@ out:
 - As of right now, ChainFactory is **easiest way to get structured, and strictly typed outputs** from your LLM chains. (Let me know if you have come across any better solutions)
 - **Parallel execution** is like second nature to ChainFactory as it was the **original problem I created it to solve**.
 - **Seamless transitions** from **sequential** to **parallel** modes and vice versa.
-- **Avoid** the need to use **prompting tricks** and write paragraphs of text to **convince the model** (beg) to do what you want.
+- **Avoid** the need to use **prompting tricks** and writing paragraphs of text to **convince the model** (beg) to do what you want.
 
 The chains produced this way are reproducible and easy to manage i.e read, edit and share. They can be loaded and executed using ChainFactoryEngine. Besides the engine, I also plans to eventually add transpilation to Python and JavaScript clients soon.
 
