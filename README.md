@@ -2,10 +2,10 @@
 
 ## Overview
 
-`ChainFactory` is a utility that runs LLM chains by configuration instead of code. The config formt is slightly modified `.yaml` which I am calling `.fctr` format. Here's how it looks:
+`ChainFactory` is a utility that runs LLM chains by configuration instead of code. The config formt is basically a slightly modified `.yaml` which I am calling `.fctr` (too cheesy?). Here's how a chain definition looks like:
 
 ``` yaml
-# file: examoples/haiku_purpose.fctr
+# file: examples/haiku_purpose.fctr
 purpose: to generate haikus
 
 def:
@@ -19,10 +19,8 @@ in:
   topic: str
 
 out:
-  haikus : list[Haiku]
+  haikus : list[Haiku] # structured output, types auto generated at runtime
 ```
-
-**Note**: This is obviously a very simple example designed to demonstrate the syntax and the use of various fields
 
 **TLDR**: Here's what ChainFactory can do to simplify the handling of your LLM chains:
 
