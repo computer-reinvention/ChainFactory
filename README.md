@@ -29,7 +29,7 @@ out:
 - **Seamless transitions** from **sequential** to **parallel** execution modes and vice versa.
 - **Avoid** the need to use **vague prompting tricks and heurestics** and **writing paragraphs** of text to **convince the model** (beg) to do what you want.
 
-The chains produced this way are reproducible and easy to manage i.e read, edit and share. They can be loaded and executed using the `ChainFactoryEngine` class which can be directly called like a function once instantiated. Besides the engine, I also plan to eventually add transpilation to Python and JavaScript clients if it seems like a sensible direction.
+The chains produced this way are reproducible and easy to manage i.e read, edit and share. They can be loaded and executed using the `ChainFactoryEngine` class which can be directly called like a function once instantiated. ~~Besides the engine, I also plan to eventually add transpilation to Python and JavaScript clients if it seems like a sensible direction.~~ That did not turn out to be a sensible direction.
 
 **Note**: A very interesting pattern is possible here because of defining the chains via config: you can generate and execute use-case tailored chains with arbitrary number of steps, dynamically during runtime. The generator of these chains could itself be a chainfactory chain.
 
@@ -71,9 +71,7 @@ Make sure your OpenAI API key is set up in the environment variables:
 - [ ] support for few shot prompting using example providers
 - [ ] implement streaming mode
 - [ ] implement example chain that generates valid chainfactory chains
-
-- [ ] python transpilation (maybe)
-- [ ] typescript transpilation (maybe)
+- [ ] (a secret awesome thing still being cooked)
 
 # The ChainFactory Specification
 **Draft 004a**
