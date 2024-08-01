@@ -1,4 +1,4 @@
-ß# ChainFactory: Run Structured LLM Inference with Easy Parallelism (`chainfactory-py 0.0.11`)
+# ChainFactory: Run Structured LLM Inference with Easy Parallelism (`chainfactory-py 0.0.11`)
 
 ## Overview
 
