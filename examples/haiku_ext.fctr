@@ -1,0 +1,22 @@
+@chainlink extends haiku.fctr
+
+prompt: |
+  Write a short and concise review for each the following haikus.
+
+  {haikus}
+
+  Consider the following:
+	- Creativity and Originality
+	- Clarity and Structure
+	- Emotional Impact
+	- Relevance and Cultural Significance
+
+	Write a review of the above haikus.
+
+def:
+  HaikuReview:
+    review: str % The review of the haiku. 
+		haiku: str % The haiku text provided as input.
+
+out:
+	reviews: list[HaikuReview]
