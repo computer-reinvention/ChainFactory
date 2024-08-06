@@ -293,6 +293,7 @@ class ChainFactory:
     """
 
     links: list[ChainFactoryLink]
+    base_chain: Optional["ChainFactory"] = None
     definitions: FactoryDefinitions = FactoryDefinitions()
     internal_engine_cls: Any = None
     internal_engine_config: Any = None
@@ -346,7 +347,7 @@ class ChainFactory:
         lines = content.splitlines()
         parts = {}
         current_part = None
-
+        base_chain_path = None
         if "@chainlink" not in content:
             return cls(
                 links=[
@@ -365,9 +366,25 @@ class ChainFactory:
             if line.startswith("#"):
                 continue
 
-            new_portion_start = line.strip().startswith("@chainlink")
+            chainlink_directive = line.strip().startswith("@chainlink")
+            extends_directive = line.strip().startswith("@extends")
 
-            if not new_portion_start and current_part:
+            if extends_directive:
+                if base_chain_path:
+                    raise ValueError(
+                        f"Error on line {i}. @extends directive can only be used once."
+                    )
+
+                extends_parts = [part.strip() for part in line.strip().split(" ")]
+                if len(extends_parts) != 2:
+                    raise ValueError(
+                        f"Error on line {i}. Invalid @extends directive. Must be of the form `@extends [path]`."
+                    )
+
+                base_chain_path = extends_parts[1]
+                continue
+
+            if not chainlink_directive and current_part:
                 parts[current_part]["lines"].append(line)
                 continue
 
@@ -485,9 +502,22 @@ class ChainFactory:
             if link.definitions:
                 global_defs.extend(link.definitions)
 
+        base_chain = None
+        if base_chain_path:
+            base_chain = cls.from_file(
+                base_chain_path,
+                internal_engine_cls=internal_engine_cls,
+                internal_engine_config=internal_engine_config,
+            )
+            chainlinks = base_chain.links + chainlinks
+            global_defs.extend(base_chain.definitions)
+
+            # TODO: add a basic compatibility check between the base chain and the current chain
+
         return cls(
             links=chainlinks,
             definitions=global_defs,
+            base_chain=base_chain,
             internal_engine_cls=internal_engine_cls,
             internal_engine_config=internal_engine_config,
         )
