@@ -153,5 +153,36 @@ def haiku_generate_review_validate_summary(topic="Python", num=2):
     print("==================")
 
 
+def haiku_generate_review_via_extends(topic="Python", num=2):
+    """
+    Demonstrates how to create a chain with 3 steps and these types of links:
+
+    <input>                    ------------------------- the initial values. (topic, num in this case)
+      |
+    [haiku-generator]          ------------------------- generate `num` haiku in 1 inference (inherited using @extends)
+      |
+    (split)                    ------------------------- output split into `num` inputs for next step. sequential -> parallel linking.
+      |
+    [haiku-critic]             ------------------------- `num` inferences simultaneously in threadpool
+      |
+    (map)                      ------------------------- output elements mapped into inputs for next step. parallel -> parallel linking.
+      |
+    <output>                   ------------------------- the output is a list of summarize-activity.out model instances
+
+    Note: Reduction is the coalescence of the all the elements of parallel chain's output into a single input for the next chainlink. This is necessary to come back to sequential execution.
+
+    Args:
+        topic (str, optional): The topic of the haiku. Defaults to "Python".
+        num (int, optional): The number of haikus to generate. Defaults to 2.
+    """
+    haiku_review_engine = Engine.from_file("examples/haiku_extends.fctr")
+
+    res = haiku_review_engine(topic=topic, num=num)
+
+    print("==================")
+    pprint(res)
+    print("==================")
+
+
 if __name__ == "__main__":
-    haiku_generate_review_validate()
+    haiku_generate_review_via_extends()
