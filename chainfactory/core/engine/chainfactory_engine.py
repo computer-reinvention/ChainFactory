@@ -4,11 +4,11 @@ from pprint import pprint
 from typing import Any, Literal
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import lru_cache
 
 from langchain.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
+from langchain_ollama import ChatOllama
 from langchain_core.runnables import RunnableSerializable
 
 from chainfactory.core.factory import ChainFactoryLink, ChainFactory
@@ -23,7 +23,7 @@ class ChainFactoryEngineConfig:
     model: str = "gpt-4o"
     temperature: float = 0
     cache: bool = False
-    provider: Literal["openai", "anthropic"] = "openai"
+    provider: Literal["openai", "anthropic", "ollama"] = "openai"
     max_tokens: int = 1024
     model_kwargs: dict = field(default_factory=dict)
     max_parallel_chains: int = 10
@@ -373,6 +373,12 @@ class ChainFactoryEngine:
                     )
                 case "anthropic":
                     llm = ChatAnthropic(
+                        temperature=config.temperature,
+                        model_name=config.model,
+                        **config.model_kwargs,
+                    )
+                case "ollama":
+                    llm = ChatOllama(
                         temperature=config.temperature,
                         model_name=config.model,
                         **config.model_kwargs,

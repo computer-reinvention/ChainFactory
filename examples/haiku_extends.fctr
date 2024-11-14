@@ -14,11 +14,5 @@ prompt: |
 	- Relevance and Cultural Significance
 
 	Write a review of the above haikus.
-
-def:
-  HaikuReview:
-    review: str % The review of the haiku. 
-		haiku: str % The haiku text provided as input.
-
 out:
-	reviews: list[HaikuReview]
+	review: str % A comprehensive review of all the haikus generated and comments on their creativity, originality, clarity, structure, emotional impact and relevance.

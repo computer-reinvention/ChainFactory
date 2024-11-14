@@ -1,7 +1,7 @@
 import re
 from typing import Any, Literal
 
-from langchain.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 
 from .parsing.class_from_dict import create_class_from_dict
 

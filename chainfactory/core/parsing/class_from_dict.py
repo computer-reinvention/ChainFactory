@@ -1,7 +1,5 @@
 from typing import Optional
 
-from langchain.pydantic_v1 import Field
-
 
 def create_class_from_dict(
     class_name: str,
