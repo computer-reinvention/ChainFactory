@@ -1,4 +1,4 @@
-# ChainFactory: Run Structured LLM Inference with Easy Parallelism (`chainfactory-py 0.0.11`)
+# ChainFactory: Run Structured LLM Inference with Easy Parallelism (`chainfactory-py 0.0.12`)
 
 ## Overview
 
@@ -22,7 +22,7 @@ out:
 **TLDR**: Here's what ChainFactory can do to simplify the handling of your LLM chains:
 
 - **Auto-generation of prompts** using a purpose and stating the inputs.
-- Effortless **flow of data between multi step chains**. 
+- Effortless **flow of data between multi step chains**.
 - **Automatic filtering and mapping** the **output** data from one chain **to the inputs** of the next chain.
 - As of right now, ChainFactory is **the easiest way to get structured, and strictly typed outputs** from your LLM chains. (Let me know if you have come across any better solutions)
 - **Parallel execution** is like second nature to ChainFactory as it was the **reason it was created for.**.
@@ -66,479 +66,467 @@ Make sure your OpenAI API key is set up in the environment variables:
   - [x] parallel to parallel handover (map)
   - [x] parallel to sequential handover (reduce)
 - [x] optimizations such as hash based caching for internal generation of prompts
-- [ ] a lot of syntax tweaking (ongoing)
+- [x] a lot of syntax tweaking (ongoing)
 - [ ] implement enum types in defs and outs
-- [ ] support for few shot prompting using example providers
-- [ ] implement streaming mode
-- [ ] implement example chain that generates valid chainfactory chains
+- [ ] simple RAG and source propagation
+- [ ] few shot prompting and via semantic selection
+- [ ] streaming mode
 - [ ] (a secret awesome thing still being cooked)
 
-# The ChainFactory Specification
-**Draft 004a**
+# ChainFactory Technical Specification & Execution Flow - v006
+Spec Authors: Pankaj Garkoti &  Claude 3.5 Sonnet
+Last Updated: 17 November 2024
 
-## About `.fctr`
-A `.fctr` file is mostly written in  `.yaml` syntax. Multiple steps can be defined in a single file by separating them with a `@chainlink [name] [type]` directive. This is where it diverges from YAML. The `@chainlink` directive allows us to repeat root level keys (def, in, out) which is invalid in YAML.
+## 1. System Architecture
 
+### 1.1 Core Components
 
-## Typing
-The typing system takes direct inspiration from Python's type annotations with some added syntax to add descriptions. The following atomic types are supported:
+#### 1.1.1 ChainFactoryEngine
+The primary execution runtime that orchestrates chain execution. Responsible for:
+- Chain instantiation and lifecycle management
+- Execution mode transitions
+- Parallel execution coordination
+- Template caching
+- Error handling
 
+```python
+@dataclass
+class ChainFactoryEngineConfig:
+    model: str                    # LLM model identifier
+    temperature: float           # Model temperature
+    cache: bool                  # Enable/disable caching
+    provider: Literal           # Model provider (openai/anthropic/ollama)
+    max_tokens: int             # Max output tokens
+    model_kwargs: dict          # Additional model parameters
+    max_parallel_chains: int    # Maximum parallel executions
+    print_trace: bool          # Debug trace printing
+```
+
+#### 1.1.2 ChainFactoryLink
+Represents a single chain node with:
+- Input/output specifications
+- Execution type (sequential/parallel)
+- Prompt template
+- Type definitions
+- Transition interface specifications
+
+#### 1.1.3 ChainFactory
+Top-level factory managing:
+- Chain link graph construction
+- Type system coordination
+- Global definitions
+- Chain inheritance
+
+### 1.2 Type System
+
+The type system implements strict validation through:
+
+#### 1.2.1 Atomic Types
 - str
 - int
 - float
 - bool
 
-Additionally, the following data structures are supported:
-- list
-- dict
+#### 1.2.2 Container Types
+- list[T]
+- dict[K,V]
 
-The syntax for typing a field is as follows:
-
-`[name]: [type][?] = [default_value] % [description]`
-
-The order in which the description and default value are specified is not important. Both the description and the default value are optional. `?` marks the field as optional.
-
-The `?` symbol right after a type (without spaces) indicates that the field is optional. If a field has a RHS value that is not a valid type, ChainFactory will assume that the field type is `str` and the RHS is a default value.
-
-Custom types can be defined under the `def` field of the .fctr file.
-
-### Definitions
-The def section is the part of the .fctr file that defines custom types to be used in rest of the file.
-
-Example Usage:
-``` yaml
-def:
-  Haiku:
-    haiku: str
-    explanation: str % the explanation for the haiku. must be 2 sentences minimum. # passed as field description to the model
-    topic: str
+#### 1.2.3 Type Declaration Syntax
+```
+<field>: <type>[?] = <default> % <description>
 ```
 
-The models defined in the `def` section can be used with other inbuilt types and other defined models to enforce complex output structures.
+Components:
+- field: Identifier
+- type: Type expression
+- ?: Optional marker
+- default: Default value
+- description: Field documentation
 
-### Prompt
-The prompt template related options can be set under this section. The following fields are defined:
+#### 1.2.4 Custom Types
+Defined in `def` blocks:
 
-- type: template # can be template, auto. the template is generated automatically based on the purpose of the chain in the auto mode.
-- purpose: null # a string that describes the purpose of the chain. this can be used for auto generating the prompt template.
-- template: | # the template to use for the prompt. 
+```yaml
+def:
+  CustomType:
+    field1: type1
+    field2: type2
+```
 
-Example Usage:
-``` yaml
+Implementation enforces:
+- Type hierarchy validation
+- Circular reference detection
+- Default value type checking
+- Optional field handling
+
+### 1.3 Transition Protocols
+
+#### 1.3.1 Linear (Sequential → Sequential)
+Variable matching protocol:
+1. Extract output variables from source chain
+2. Match against target chain input variables
+3. Apply field access rules
+4. Validate type compatibility
+
+#### 1.3.2 Concave (Sequential → Parallel)
+Splitting protocol:
+1. Identify iterable field in source output
+2. Create n parallel execution contexts
+3. Split source data across contexts
+4. Initialize parallel executors
+
+#### 1.3.3 Planar (Parallel → Parallel)
+Mapping protocol:
+1. Maintain parallel context count
+2. Map source elements to target inputs
+3. Preserve execution order
+4. Handle error propagation
+
+#### 1.3.4 Convex (Parallel → Sequential)
+Reduction protocol:
+1. Apply mask template to elements
+2. Aggregate parallel outputs
+3. Construct single target input
+4. Release parallel contexts
+
+### 1.4 Execution Engine
+
+#### 1.4.1 Parallel Execution
+Implementation using ThreadPoolExecutor:
+
+```python
+with ThreadPoolExecutor(max_workers=config.max_parallel_chains) as executor:
+    futures = []
+    for input in split_inputs:
+        future = executor.submit(chain.invoke, input)
+        futures.append(future)
+```
+
+Features:
+- Configurable max parallel chains
+- Order preservation
+- Resource management
+- Error handling
+
+#### 1.4.2 Caching System
+Template caching implementation:
+1. Hash generation: farmhash.FarmHash64(purpose + input_vars)
+2. Cache location: .chainfactory/cache/
+3. Cache format: JSON
+4. Cache invalidation: Manual
+
+#### 1.4.3 Error Handling
+Hierarchical error handling:
+1. Chain level errors
+2. Transition interface errors
+3. Type validation errors
+4. Execution errors
+5. Resource errors
+
+## 2. Chain Definition Specification
+
+### 2.1 File Format (.fctr)
+Extended YAML with:
+- @chainlink directives
+- Type annotations
+- Description comments
+- Transition hints
+
+### 2.2 Sections
+
+#### 2.2.1 Chainlink Declaration
+```yaml
+@chainlink [name] [type]
+```
+- name: Optional identifier
+- type: sequential(--) | parallel(||)
+
+#### 2.2.2 Input Declaration
+```yaml
+in:
+  var1: type1
+  var2: type2
+```
+
+#### 2.2.3 Output Declaration
+```yaml
+out:
+  field1: type1
+  field2: list[CustomType]
+```
+
+#### 2.2.4 Prompt Templates
+```yaml
 prompt:
-  type: template # possible values are template, auto.
-  purpose: null # can be provided to auto generate the prompt template if the input variables are given
-  template: | # the purpose and type fields are ignored if the template is provided
-    Write a haiku about {topic}
+  type: template|auto
+  purpose: str
+  template: str
 ```
 
-Usually you would use a shorthand for the above as follows:
-```
-prompt: Write a haiku about {topic}
-```
-Additionally, the following shorthand can be used for auto mode:
-```
-purpose: "to generate haikus" # the file should contain the in field
-```
-The prompts that are internally generated are cached in `.chainfactory/cache` of your root project and will be reused for subsequent invocations unless the stated `purpose` or the listed input variables are changed. To achieve this a hash is created from the `purpose` + `input_variables` combination. This hash only changes when the `purpose` or the listed input variables are changed. The hashing function is `farmhash.FarmHash64` - suitable for hashing large strings such as ours.
-
-### In
-This section defines the input variables for this chain. It is only required when the prompt is set to `auto` mode. ChainFactory will automatically generate a prompt using `purpose` and the input variables for the chain on the first invocation.
-
-Example Usage:
-``` yaml
-purpose: "to generate haikus"
-
-in:
-  num: int
-  topic: str
+#### 2.2.5 Masks (Convex Transition)
+```yaml
+mask:
+  type: template|auto
+  variables: list[str]
+  template: str
 ```
 
-On running the chain containing the above definition, this prompt template is generated on the first invocation and used for the subsequent invocations.
+## 3. Runtime Behavior
 
-``` txt
-Generate {num} haikus on the topic of {topic}. Each haiku should follow the traditional 5-7-5 syllable structure.
+### 3.1 Initialization Sequence
+1. Parse .fctr file
+2. Validate type definitions
+3. Initialize chain links
+4. Configure execution engine
+5. Prepare caching system
+
+### 3.2 Execution Flow
+1. Input validation
+2. Chain link traversal
+3. Transition protocol selection
+4. Parallel context management
+5. Output collection
+6. Error handling
+
+### 3.3 Resource Management
+1. Thread pool sizing
+2. Memory allocation
+3. Model token limits
+4. Cache storage
+
+### 3.4 Performance Characteristics
+- Parallel efficiency: O(n/p) where n=chains, p=parallel_max
+- Memory usage: O(m*c) where m=max_tokens, c=chain_count
+- Cache storage: O(t*v) where t=templates, v=variables
+
+## 4. API Reference
+
+### 4.1 ChainFactoryEngine
+```python
+class ChainFactoryEngine:
+    def __init__(self, factory: ChainFactory, config: ChainFactoryEngineConfig)
+    def __call__(self, *args, **kwargs) -> Any
+    @classmethod
+    def from_file(cls, file_path: str, config: ChainFactoryEngineConfig)
+    @classmethod
+    def from_str(cls, content: str, config: ChainFactoryEngineConfig)
 ```
 
-Once generated, a unique hash is made from the `purpose` + `input_variables` combination. Using this hash as the key, the generated prompt is cached in `.chainfactory/cache` of your root project and will be reused for subsequent invocations unless the stated `purpose` or the listed input variables are changed.
-
-The advantage of using this approach is not that apparent when we have a small number of inputs. However, as the number of input variables goes up, defining the purpose in a single sentence and just listing the inputs is quite helpful and keeps the chain definition clean.
-
-**Side Note**: In future, the generated prompt can be automatically optimized using something like `DSpy` - which would then make this way of defining the chain superior than writing prompts manually for all cases.
-
-### Out
-The `out` keyword defines the output structure of the chain. You can refer to the models defined in the `def` section to create consistent and well-typed output structures. If the `out` section is not defined, the chain output is assumed to be a single string with no enforced structure.
-
-Example Usage:
-``` yaml
-out:
-  haikus : list[Haiku] # using the Haiku model defined in the def section
+### 4.2 ChainFactory
+```python
+class ChainFactory:
+    def __init__(self, links: list[ChainFactoryLink])
+    @classmethod
+    def from_file(cls, file_path: str, **kwargs)
+    @classmethod
+    def from_str(cls, content: str, **kwargs)
 ```
 
-## Usage
+## 5. Error Conditions
 
-The completed `.fctr` file for generating haikus looks like this: 
+### 5.1 Validation Errors
+- Invalid type definitions
+- Missing required fields
+- Type mismatches
+- Invalid transitions
 
-``` yaml
-# file: haiku.fctr
-def:
-  Haiku:
-    haiku: str
-    explanation: str
-    topic: str
-prompt: Write {num} haiku(s) about {topic}
-out:
-  haikus : list[Haiku]
+### 5.2 Runtime Errors
+- Execution failures
+- Resource exhaustion
+- Invalid parallel contexts
+- Cache failures
+
+### 5.3 Configuration Errors
+- Invalid chain definitions
+- Invalid transition specifications
+- Invalid mask templates
+- Invalid prompt templates
+
+## 6. Extensibility
+
+### 6.1 Custom Type Extensions
+- Type definition protocol
+- Validation hooks
+- Serialization handlers
+
+### 6.2 Provider Extensions
+- Model interface protocol
+- Provider registration
+- Configuration handling
+
+### 6.3 Cache Extensions
+- Cache backend protocol
+- Cache key generation
+- Invalidation hooks
 ```
 
-This file can be loaded directly into the `ChainFactoryEngine`. This is a driver class which creates the `Factory` from `haiku.fctr` and then uses the `Factory` to create a `LangChain` `RunnableSerializable` chain internally using a dynmically created pydantic model to force the model output into the desired structure.
-An instance of the `ChainFactoryEngine` can then be directly called like a function. Any input variables can be passed as kwargs and are directly passed to the underlying chains.
+## 7. Sequence Diagrams and Control Flow
 
-``` python
-from chainfactory import ChainFactoryEngine
+### 7.1 Chain Initialization Flow
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Engine
+    participant Factory
+    participant Links
+    participant Cache
 
-engine = ChainFactoryEngine.from_file("haiku.fctr")
-results = engine(topic="Python", num=3) # this call will execute the chain and any subsequent chains after that
+    Client->>Engine: from_file(path)
+    Engine->>Factory: parse_fctr_file()
+    Factory->>Links: create_chain_links()
+    Links->>Cache: load_cached_templates()
+    Cache-->>Links: cached_templates
+    Links-->>Factory: initialized_links
+    Factory-->>Engine: factory_instance
+    Engine-->>Client: engine_instance
 ```
 
-Executing the above generates 3 haikus and their explanations as expected:
+### 7.2 Sequential Chain Execution
+```mermaid
+sequenceDiagram
+    participant Engine
+    participant Chain1
+    participant Chain2
+    participant LLM
 
-``` txt
-Silent code it weaves,
-Serpentine logic unfolds,
-Errors shed like skin.
-Explanation: This haiku captures the elegance and efficiency of Python programming, likening it to a snake shedding its skin to symbolize the ease of debugging and refining code.
-
-
-Indentation rules,
-Whitespace guides the coder's hand,
-Python's zen revealed.
-Explanation: This haiku highlights Python's unique use of indentation and whitespace to structure code, reflecting the language's philosophy of simplicity and readability.
-
-
-Libraries abound,
-Endless tools at your command,
-Python's power grows.
-Explanation: This haiku emphasizes the vast array of libraries and tools available in Python, showcasing its versatility and the growing strength of its ecosystem.
+    Engine->>Chain1: invoke(input)
+    Chain1->>LLM: execute_prompt()
+    LLM-->>Chain1: raw_response
+    Chain1->>Chain1: validate_output()
+    Chain1-->>Engine: validated_output
+    Engine->>Chain2: filter_and_invoke(output)
+    Chain2->>LLM: execute_prompt()
+    LLM-->>Chain2: raw_response
+    Chain2->>Chain2: validate_output()
+    Chain2-->>Engine: final_output
 ```
 
-## Defining and Executing a Multi-Step Chain
+### 7.3 Parallel Chain Execution
+```mermaid
+sequenceDiagram
+    participant Engine
+    participant Splitter
+    participant ThreadPool
+    participant Chain[n]
+    participant Reducer
 
-This is where the `@chainlink` directive comes into play. Recall that the syntax for using the directive is as follows:
-
-`@chainlink [name] [type]`
-
-Both the parameters are optional. Name can be any string without spaces and type can be either `sequential` or `parallel`. If the name is not provided, the chain name will be a random UUID. The default value for type is *sequential*. 
-
-Since ChainFactory can execute chains in parallel or sequentially, there is a need to define the rules which this propagation of execution should follow.
-
-The following transition interfaces are formed based on the chain execution type. It is easier to refer to them if we consider chains as analogous to lens in optical physics.
-
-1. (sequential -> sequential)
-    - This is the transition interface when the output of a sequential chain is passed into the next chain.
-    - Input variables are matched on the basis of the names and only the matching variables are passed as the input to the next chain.
-    - You can refer to internal fields using . access syntax as with JavaScript objects.
-    - This interface is analogous to a single ray of light changing mediums. We will call this a `linear` transition.
-
-2. (sequential -> parallel)
-    - This is the transition interface when the output of a sequential chain is passed into multiple instances of the next chain. The construction of the input follows the following simple rule:
-        - The number of parallel computations is determined by the length of the first iterable field found in the previous chain output (`n`).
-        - The outputs from the sequential chain are split into `n` similar but not identical inputs for parallel chain's instances.
-        - Any non-iterable variable from the previous chain can be used as an input variable simply in this one as before.
-    - In optics, a concave lens essentially spreads the light coming from a single source into multiple parallel beams (if the object is at focus). 
-    - Thus, keeping the optical analogy, we will call this a `concave` transition.
-
-3. (parallel -> parallel)
-    - This is a transition interface when the output of a parallel chain is passed into an equal number of instances of the next chain.
-    - Name based filtering still applies.
-    - This interface is analogous to a bundle of light transitioning from 1 medium to another. We will call this a `planar` transition.
-
-4. (parallel -> sequential)
-    - This is a transition interface when the outputs of multiple instances of the last chain is used to create a single output.
-    - This interface is the most complex one of the four.
-    - A field called `mask` is used to specify how to represent the element from the previous chain output in this chain's prompt. This is basically a string template.
-    - Analogous to a convex lens focusing a bundle of parallel beams into a single point. We will call this a `convex` transition.
-
-
-The above rules, once implemented, can be used to create complex chains which can be executed in parallel or sequentially just by specifying the transition type. Let's start with a simple example.
-
-### Sequential -> Sequential Transition
-
-``` yaml
-# Example of a linear chain interface
-@chainlink haiku-generator
-prompt: Write {num} haiku(s) about {topic}. Use the standard 5-7-5 syllable pattern.
-def:
-  Haiku:
-    haiku: str the haiku text
-    explanation: str? 
-    topic: str % the original topic
-
-out:
-  haikus : list[Haiku]
-
-@chainlink haiku-critic
-prompt: |
-  Write a short and concise review for each the following haikus.
-
-  {haikus}
-
-  Consider the following:
-    - Creativity and Originality
-    - Clarity and Structure
-    - Emotional Impact
-    - Relevance and Cultural Significance
-
-    Write a review of the above haikus.
-def:
-  HaikuReview:
-    review: str % The review of the haiku. 
-    haiku: str % The haiku text provided as input.
-out:
-  reviews: list[HaikuReview]
+    Engine->>Splitter: split_input()
+    Splitter->>ThreadPool: create_workers()
+    ThreadPool->>Chain[n]: parallel_invoke()
+    Chain[n]-->>ThreadPool: parallel_results
+    ThreadPool->>Reducer: collect_results()
+    Reducer-->>Engine: aggregated_output
 ```
 
-Note how the `@chainlink` directive is used to define the chain with multiple steps. The `haikus` field is present in both the `generator` and `critic` chains. ChainFactory will automatically match the input variables and pass them to the respective chains. The following diagram shows the execution.
+### 8 Environment Requirement- Python 3.8+
+- ThreadPoolExecutor support
+- File system access for caching
+- Network access for LLM providers
 
-``` txt
-
-<input>           ------------------------- the initial values. (topic, num in this case)
-    |
-    | 
-[haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
-    |
-    |
-(filter)          ------------------------- output is filtered to only retain relevant fields. sequential -> sequential linking.
-    |
-    |
-[haiku-critic]    ------------------------- (generate `num` reviews in 1 inference)
-    |
-    |
-<output>          ------------------------- the output is a haiku-critic.out instance
-
-
-Note: Filtering makes sure that only the input_variables of the subsequent chain are included from the previous chain output.
-
+### 8.1 Resource Requirements (TODO)
+```python
+class ResourceRequirements:
+    min_memory_mb: int = 512
+    recommended_memory_mb: int = 1024
+    min_cpu_cores: int = 2
+    recommended_cpu_cores: int = 4
+    disk_space_mb: int = 100
+    network_bandwidth_mbps: int = 10
 ```
 
-### Sequential -> Parallel Transition
-As stated this transition involves creation of multiple instances of the next chain and initiating them in parallel.
+### 8.2 Configuration Management (In the kitchen...)
+```yaml
+deployment:
+  cache:
+    path: .chainfactory/cache
+    max_size_mb: 1000
+    cleanup_interval: 3600
 
-``` yaml
-@chainlink haiku-generator
-prompt: Write {num} haiku(s) about {topic}. Use the standard 5-7-5 syllable pattern.
-def:
-  Haiku:
-    haiku: str
-    explanation: str
-out:
-  topic: str % the original topic. required.
-  haikus : list[Haiku]
+  execution:
+    max_parallel: 10
+    timeout_seconds: 30
+    retry_attempts: 3
 
-# a concave transition between the two chainlinks
-
-@chainlink haiku-critic ||
-purpose: critical analysis of a haiku in 3 to 5 sentences
-in:
-  topic: str
-  haikus.element.haiku: str
-  haikus.element.explanation: str
-out:
-  review: str % concise literary analysis of this haiku.
-  haiku: str % original haiku text. required.
+  monitoring:
+    log_level: INFO
+    metrics_enabled: true
+    trace_enabled: false
 ```
 
-Pay attention to the `element` syntax to refer to the interal fields of the element in the iterable from previous chain output. The `critic` chain will now be executed on each of the haiku separately.
-ChainFactory will automatically initiate len(haikus) instances of the `critic` chain in parallel and pass the filtered inputs to each of them.
+## 9. Performance Optimization Considerations
 
-Here's the flow diagram:
-
-``` txt
-
-<input>           ------------------------- the initial values. (topic, num in this case)
-    |
-    |
-[haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
-    |
-    |
-(filter)
-    |
-    |
-(split)           ------------------------- output is used to prepare `num` inputs for next step. sequential -> parallel linking.
-    |
-    |
-[haiku-critic]    ------------------------- parallel (`num` inferences simultaneously in threadpool)
-    |
-    |
-<output>          ------------------------- the output is a list of haiku-critic.out model instances
-
-Note: Splitting means creating `num` separate inputs that will be passed to `num` simultaneous instances of the subsequent chain. Filtering is automatically applied.
-
+### 9.1 Parallel Execution Optimization
+```python
+def optimize_parallel_execution(chain_count: int, available_cores: int) -> int:
+    """Calculate optimal parallel execution parameters."""
+    return min(
+        chain_count,
+        available_cores * 2,
+        MAX_PARALLEL_CHAINS
+    )
 ```
 
-### Parallel -> Parallel Transition
-
-This transition again acts on the elements of iterable fields from the previous chain outputs. We can add a validation step to the above example to demonstrate this transition.
-
-``` yaml
-@chainlink haiku-generator
-prompt: Write {num} haiku(s) about {topic}. Use the standard 5-7-5 syllable pattern.
-def:
-  Haiku:
-    haiku: str
-    explanation: str
-out:
-  topic: str % the original topic. required.
-  haikus : list[Haiku]
-
-# a concave transition between the two chainlinks
-
-@chainlink haiku-critic ||
-purpose: critical analysis of a haiku in 3 to 5 sentences
-in:
-  topic: str
-  haikus.element.haiku: str
-  haikus.element.explanation: str
-out:
-  review: str % concise literary analysis of this haiku.
-  haiku: str % original haiku text. required.
-
-# a planar transition between two parallel chainlinks
-
-@chainlink validator ||
-purpose: validate if critical review of a haiku is sensible
-in:
-  haiku-critic.element.haiku: str % the haiku text
-  haiku-critic.element.review: str % ai generated review of the haiku
-out:
-  valid: bool % true if the review is sensible, false otherwise. required.
-  haiku: str % verbatim haiku text. required.
-  review: str % verbatim review text. required.
-  reasoning: str % reasoning for your decision. required.
+### 9.2 Cache Optimization
+```python
+def optimize_cache_strategy(
+    memory_available_mb: int,
+    avg_template_size_kb: int,
+    request_pattern: str
+) -> CacheConfig:
+    """Calculate optimal cache parameters."""
+    return CacheConfig(
+        max_size=min(memory_available_mb * 0.1, DEFAULT_CACHE_SIZE),
+        eviction_policy='lru' if request_pattern == 'temporal' else 'lfu',
+        compression_enabled=avg_template_size_kb > 10
+    )
 ```
 
-Note how the validation chain refers to the previous chain output using the `chain-name.element` syntax. Here's the flow diagram:
+## 10. Error Recovery and Resilience
 
-``` txt
+### 10.1 Retry Strategy - When and Where to Retry (TODO)
+```python
+class RetryStrategy:
+    max_attempts: int = 3
+    backoff_factor: float = 1.5
+    max_backoff_seconds: int = 30
 
-<input>           ------------------------- the initial values. (topic, num in this case)
-  |
-  |
-[haiku-generator] ------------------------- (generate `num` haiku in 1 inference)
-  |
-  |
-(split)           ------------------------- output split into `num` inputs for next step. sequential -> parallel linking.
-  |
-  |
-[haiku-critic]    ------------------------- parallel (`num` inferences simultaneously in threadpool)
-  |
-  |
-(map)             ------------------------- output elements mapped into inputs for next step. parallel -> parallel linking.
-  |
-  |
-[validator]       ------------------------- parallel (`num` inferences simultaneously in threadpool)
-  |
-  |
-<output>          ------------------------- the output is a list of validator.out model instances
-
-Note: Mapping is a slightly complex form of filtering. It is applied on all elements of previous chain's output at once.
-
+    def calculate_delay(self, attempt: int) -> float:
+        """Calculate delay for retry attempt."""
+        delay = self.backoff_factor ** attempt
+        return min(delay, self.max_backoff_seconds)
 ```
 
-### Parallel -> Sequential Transition
-This is the most important transition as most use cases require a single output at the end of the chain. This involves providing a mask to tell ChainFactory which how the elements of the previous chain output will show up in the final prompt. Prepare yourself for haiku-ception. We ask the system to generate a haiku on its business of generating haikus.
+### 10.2 Circuit Breaker Pattern (TODO)
+```python
+class ChainCircuitBreaker:
+    failure_threshold: int = 5
+    reset_timeout_seconds: int = 60
+    half_open_timeout_seconds: int = 30
 
-
-``` yaml
-@chainlink haiku-generator
-prompt: Write {num} haiku(s) about {topic}. Use the standard 5-7-5 syllable pattern.
-def:
-  Haiku:
-    haiku: str
-    explanation: str
-out:
-  topic: str % the original topic. required.
-  haikus : list[Haiku]
-
-# a concave transition between the two chainlinks
-
-@chainlink haiku-critic ||
-purpose: critical analysis of a haiku in 3 to 5 sentences
-in:
-  topic: str
-  haikus.element.haiku: str
-  haikus.element.explanation: str
-out:
-  review: str % concise literary analysis of this haiku.
-  haiku: str % original haiku text. required.
-
-# a planar transition between two parallel chainlinks
-
-@chainlink validator ||
-purpose: validate if critical review of a haiku is sensible
-in:
-  haiku-critic.element.haiku: str % the haiku text
-  haiku-critic.element.review: str % ai generated review of the haiku
-out:
-  valid: bool % true if the review is sensible, false otherwise. required.
-  haiku: str % verbatim haiku text. required.
-  review: str % verbatim review text. required.
-  reasoning: str % reasoning for your decision. required.
-
-# and here's the final convex transition - necessary to merge output elements from the parallel chainlinks 
-
-@chainlink summarizer --
-purpose: create a humorous haiku describing the haiku generation and reviewing system based on your observations
-mask: 
-  type: auto
-  variables: 
-    - validator.element.haiku
-    - validator.element.review
-    - validator.element.valid
-out:
-  generator_haiku: str
-  generator_haiku_explanation: str
-  reviewer_haiku: str
-  reviewer_haiku_explanation: str
+    def should_execute(self, chain: ChainFactoryLink) -> bool:
+        """Determine if chain should execute based on failure history."""
+        if self.is_open(chain):
+            if time.time() - self.last_failure(chain) > self.reset_timeout_seconds:
+                return self.try_half_open(chain)
+            return False
+        return True
 ```
 
-Here's the flow diagram. We finally have 3 transitions and 4 chainlinks.
-
-``` txt
-
-<input>                    ------------------------- the initial values. (topic, num in this case)
-  |
-  |
-[haiku-generator]          ------------------------- generate `num` haiku in 1 inference
-  |
-  |
-(split)                    ------------------------- output split into `num` inputs for next step. sequential -> parallel linking.
-  |
-  |
-[haiku-critic]             ------------------------- `num` inferences simultaneously in threadpool
-  |
-  |
-(map)                      ------------------------- output elements mapped into inputs for next step. parallel -> parallel linking.
-  |
-  |
-[validator]                ------------------------- `num` inferences simultaneously in threadpool
-  |
-  |
-(reduce)                   ------------------------- output elements reduced into a single input for next step. parallel -> sequential linking.
-  |
-  |
-[summarize-activity]       ------------------------- 1 single inference converts `num` inputs into a single output.
-  |
-  |
-<output>                   ------------------------- the output is a list of summarize-activity.out model instances
-
-
-Note: Reduction is the coalescence of the all the elements of parallel chain's output into a single input for the next chainlink. This is necessary to come back to sequential execution.
-
+### 10.3 Fallback Mechanisms (TODO)
+```python
+class ChainFallback:
+    def execute_with_fallback(
+        self,
+        primary_chain: ChainFactoryLink,
+        fallback_chain: ChainFactoryLink,
+        input_data: dict
+    ) -> dict:
+        """Execute chain with fallback option."""
+        try:
+            return primary_chain.execute(input_data)
+        except Exception as e:
+            logger.warning(f"Primary chain failed: {e}")
+            return fallback_chain.execute(input_data)
 ```
 
-This completes an introduction to the syntax and different transitions involved in chains. Using these as basic building blocks, we can create complex chains with multiple steps and multiple transitions with parallelism naturally integrated into them.
-
-
-## Feedback and Contact
-For questions or feedback, please create an issue or contact [garkotipankaj@gmail.com](mailto:garkotipankaj@gmail.com).
+The document provides detailed implementation guidance, testing requirements, deployment considerations, and best practices for extending and optimizing the ChainFactory system - some of it is bloat though.
