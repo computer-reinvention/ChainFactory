@@ -62,7 +62,7 @@ The system automatically maps outputs to inputs between chain links using dot no
 
 ```yaml
 in:
-previous_chain.element.field: str
+  previous_chain.element.field: str
 ```
 
 ### 4. Type Safety
@@ -102,7 +102,7 @@ def:
 out:
   combos: list[Combo]
 
-@chainlink ||
+@chainlink ||a # runs {num} instance in parallel
 purpose: Given a snack combination, sarcastically comment on why it's the weirdest snack combination ever.
 in:
   combos.element.items: str
