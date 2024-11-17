@@ -1,532 +1,181 @@
 # ChainFactory: Run Structured LLM Inference with Easy Parallelism (`chainfactory-py 0.0.12`)
+## Introduction
+ChainFactory is a powerful system for creating complex, multi-step LLM workflows using a simple YAML-like syntax. It allows you to connect multiple prompts in a chain, with outputs from one step feeding into inputs of subsequent steps. The most important feature is the reduced reliance on exact wording of the prompts and easy parallel execution in intermediate steps.
 
-## Overview
+## Key Features
+- Sequential and parallel chain execution
+- Automatic prompt generation from purpose statements
+- Type-safe outputs with Pydantic models
+- Chain inheritance and reusability
+- Smart input/output mapping between chain links
+- Hash based caching for prompts generated from purpose statements and masks for convex transitions.
 
-`ChainFactory` is a utility that runs LLM chains by configuration instead of code. The config format is basically slightly modified `.yaml` which I am calling `.fctr` (too cheesy?). Here's how a 1-step chain looks like:
+## Basic Concepts
+### Chain Links
+A chain link is a single unit in your workflow, defined using the `@chainlink` directive:
 
-``` yaml
-# file: examples/haiku_purpose.fctr
-purpose: to generate haikus
-def:
-  Haiku:
-    haiku: str
-    explanation: str
-    topic: str
-in:
-  num: int
-  topic: str
+```yaml
+@chainlink my-first-chain
+prompt: Write a story about {topic}
 out:
-  haikus : list[Haiku] # structured output, types auto generated at runtime
+    story: str
 ```
 
-**TLDR**: Here's what ChainFactory can do to simplify the handling of your LLM chains:
+### Sequential vs Parallel Execution
+You can specify how chain links execute:
+- Sequential (`--` or `sequential`): Links run one after another
+- Parallel (`||` or `parallel`): Links run simultaneously for multiple inputs
 
-- **Auto-generation of prompts** using a purpose and stating the inputs.
-- Effortless **flow of data between multi step chains**.
-- **Automatic filtering and mapping** the **output** data from one chain **to the inputs** of the next chain.
-- As of right now, ChainFactory is **the easiest way to get structured, and strictly typed outputs** from your LLM chains. (Let me know if you have come across any better solutions)
-- **Parallel execution** is like second nature to ChainFactory as it was the **reason it was created for.**.
-- **Seamless transitions** from **sequential** to **parallel** execution modes and vice versa.
-- **Avoid** the need to use **vague prompting tricks and heurestics** and **writing paragraphs** of text to **convince the model** (beg) to do what you want.
-
-The chains produced this way are reproducible and easy to manage i.e read, edit and share. They can be loaded and executed using the `ChainFactoryEngine` class which can be directly called like a function once instantiated. ~~Besides the engine, I also plan to eventually add transpilation to Python and JavaScript clients if it seems like a sensible direction.~~ That did not turn out to be a sensible direction.
-
-**Note**: A very interesting pattern is possible here because of defining the chains via config: you can generate and execute use-case tailored chains with arbitrary number of steps, dynamically during runtime. The generator of these chains could itself be a chainfactory chain.
-
-## Installation
-Using `pip` or [https://python-poetry.org/](poetry) as follows:
-
-   ```bash
-   pip3 install chainfactory-py
-   ```
-
-   ```bash
-   poetry add chainfactory-py
-   ```
-
-Make sure your OpenAI API key is set up in the environment variables:
-
-   ```bash
-   export OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-   ```
-
-## The Roadmap & TODOs
-
-- [x] implement defined reusable types
-- [x] accept direct kwargs in engine call
-- [x] implement bells and whistles for the prompt section
-- [x] implement default values
-- [x] implement field descriptions
-- [x] syntax: serial execution using @chainlink /name/ sequential
-- [x] basic documentation and walkthrough
-- [x] syntax: parallel execution using @chainlink /name/ ||
-  - [x] data piping and variable matching
-  - [x] sequential to parallel handover (split)
-  - [x] parallel execution in threadpool
-  - [x] parallel to parallel handover (map)
-  - [x] parallel to sequential handover (reduce)
-- [x] optimizations such as hash based caching for internal generation of prompts
-- [x] a lot of syntax tweaking (ongoing)
-- [ ] implement enum types in defs and outs
-- [ ] simple RAG and source propagation
-- [ ] few shot prompting and via semantic selection
-- [ ] streaming mode
-- [ ] (a secret awesome thing still being cooked)
-
-# ChainFactory Technical Specification & Execution Flow - v006
-Spec Authors: Pankaj Garkoti &  Claude 3.5 Sonnet
-Last Updated: 17 November 2024
-
-## 1. System Architecture
-
-### 1.1 Core Components
-
-#### 1.1.1 ChainFactoryEngine
-The primary execution runtime that orchestrates chain execution. Responsible for:
-- Chain instantiation and lifecycle management
-- Execution mode transitions
-- Parallel execution coordination
-- Template caching
-- Error handling
-
-```python
-@dataclass
-class ChainFactoryEngineConfig:
-    model: str                    # LLM model identifier
-    temperature: float           # Model temperature
-    cache: bool                  # Enable/disable caching
-    provider: Literal           # Model provider (openai/anthropic/ollama)
-    max_tokens: int             # Max output tokens
-    model_kwargs: dict          # Additional model parameters
-    max_parallel_chains: int    # Maximum parallel executions
-    print_trace: bool          # Debug trace printing
+Example - a 3 step chain:
+```yaml
+@chainlink generator --     # runs once
+@chainlink reviewer ||      # runs multiple times in parallel, number of runs is determined by output of the previous link
+@chainlink summarizer --    # runs once to summarize the output of the previous parallel link
 ```
 
-#### 1.1.2 ChainFactoryLink
-Represents a single chain node with:
-- Input/output specifications
-- Execution type (sequential/parallel)
-- Prompt template
-- Type definitions
-- Transition interface specifications
+## Cool Features
 
-#### 1.1.3 ChainFactory
-Top-level factory managing:
-- Chain link graph construction
-- Type system coordination
-- Global definitions
-- Chain inheritance
+### 1. Purpose-Driven Prompts
+Instead of writing prompts manually, let ChainFactory generate them:
 
-### 1.2 Type System
-
-The type system implements strict validation through:
-
-#### 1.2.1 Atomic Types
-- str
-- int
-- float
-- bool
-
-#### 1.2.2 Container Types
-- list[T]
-- dict[K,V]
-
-#### 1.2.3 Type Declaration Syntax
-```
-<field>: <type>[?] = <default> % <description>
+```yaml
+@chainlink
+purpose: generate creative haiku topics
+in:
+    num: int
+out:
+    topics: list[str]
 ```
 
-Components:
-- field: Identifier
-- type: Type expression
-- ?: Optional marker
-- default: Default value
-- description: Field documentation
+The system will automatically create an optimal prompt based on the purpose and the input variales before executing the chain.
 
-#### 1.2.4 Custom Types
-Defined in `def` blocks:
+### 2. Chain Inheritance
+Reuse existing chains with `@extends`:
+
+```yaml
+@extends examples/base_chain.fctr
+@chainlink additional_step
+```
+
+### 3. Smart Input/Output Mapping
+The system automatically maps outputs to inputs between chain links using dot notation:
+
+```yaml
+in:
+previous_chain.element.field: str
+```
+
+### 4. Type Safety
+Define your output structures:
 
 ```yaml
 def:
-  CustomType:
-    field1: type1
-    field2: type2
+  Haiku:
+    text: str
+    explanation: str?    # optional field
+out:
+  haikus: list[Haiku]
 ```
 
-Implementation enforces:
-- Type hierarchy validation
-- Circular reference detection
-- Default value type checking
-- Optional field handling
+## Real-World Examples
 
-### 1.3 Transition Protocols
-
-#### 1.3.1 Linear (Sequential → Sequential)
-Variable matching protocol:
-1. Extract output variables from source chain
-2. Match against target chain input variables
-3. Apply field access rules
-4. Validate type compatibility
-
-#### 1.3.2 Concave (Sequential → Parallel)
-Splitting protocol:
-1. Identify iterable field in source output
-2. Create n parallel execution contexts
-3. Split source data across contexts
-4. Initialize parallel executors
-
-#### 1.3.3 Planar (Parallel → Parallel)
-Mapping protocol:
-1. Maintain parallel context count
-2. Map source elements to target inputs
-3. Preserve execution order
-4. Handle error propagation
-
-#### 1.3.4 Convex (Parallel → Sequential)
-Reduction protocol:
-1. Apply mask template to elements
-2. Aggregate parallel outputs
-3. Construct single target input
-4. Release parallel contexts
-
-### 1.4 Execution Engine
-
-#### 1.4.1 Parallel Execution
-Implementation using ThreadPoolExecutor:
-
-```python
-with ThreadPoolExecutor(max_workers=config.max_parallel_chains) as executor:
-    futures = []
-    for input in split_inputs:
-        future = executor.submit(chain.invoke, input)
-        futures.append(future)
-```
-
-Features:
-- Configurable max parallel chains
-- Order preservation
-- Resource management
-- Error handling
-
-#### 1.4.2 Caching System
-Template caching implementation:
-1. Hash generation: farmhash.FarmHash64(purpose + input_vars)
-2. Cache location: .chainfactory/cache/
-3. Cache format: JSON
-4. Cache invalidation: Manual
-
-#### 1.4.3 Error Handling
-Hierarchical error handling:
-1. Chain level errors
-2. Transition interface errors
-3. Type validation errors
-4. Execution errors
-5. Resource errors
-
-## 2. Chain Definition Specification
-
-### 2.1 File Format (.fctr)
-Extended YAML with:
-- @chainlink directives
-- Type annotations
-- Description comments
-- Transition hints
-
-### 2.2 Sections
-
-#### 2.2.1 Chainlink Declaration
+### 1. Haiku Generator and Reviewer
 ```yaml
-@chainlink [name] [type]
-```
-- name: Optional identifier
-- type: sequential(--) | parallel(||)
+@chainlink haiku-generator
+prompt: Write {num} haiku(s) about {topic}
+out:
+    haikus: list[Haiku]
 
-#### 2.2.2 Input Declaration
+@chainlink reviewer ||     # parallely review each haiku
+purpose: critically analyze each haiku
+```
+
+### 2. Weird Snack Combo Generator + Parallel Filter + Email Writera
+
 ```yaml
+@chainlink
+purpose: Generate {num} combinations of snacks that go well with each other. Generate {num} such combinations.
+def:
+  SnackCombo:
+    items: list[str]
+    comment: str?
+out:
+  combos: list[Combo]
+
+@chainlink ||
+purpose: Given a snack combination, sarcastically comment on why it's the weirdest snack combination ever.
 in:
-  var1: type1
-  var2: type2
+  combos.element.items: str
+out:
+  res: list[SnackCombo]
+```
+examples/WeirdSnackCombo.fctr
+
+@chainlink extends WeirdSnackCombos.fctr
+purpose: Write a satirical article about the provided trivial subject bringing the demise of modern society.
+mask:
+  variables:
+    - res.element.items
+    - res.element.comment
+out:
+    article: str
+```
+examples/Article.fctra
+
+When the above file is loaded, the only input required is the number of combos to generate. The system will automatically generate the prompt template and execute the chain - at the end, we get a satirical article about the weird snack combos.
+
+
+## Best Practices
+
+1. **Use Purpose Statements**
+When possible, let the system generate prompts using clear one-liner purpose statements.
+
+2. **Type Everything**
+Define input/output types for better reliability:
+```yaml
+def:
+MyType:
+field1: str
+field2: int?
 ```
 
-#### 2.2.3 Output Declaration
+3. **Chain Structure - General Workflows**
+- Start with sequential chains for initial processing.
+- Use parallel chains for whenever the order or execution is unimportant.
+- End with sequential chains for summarization and getting a final text / object output.
+
+4. **Documentation**
+Add field descriptions using `%`. This is not only for readability, but also for the LLM to understand the context of the field. It is basically a part of the prompting process.
 ```yaml
 out:
-  field1: type1
-  field2: list[CustomType]
+review: str % A comprehensive analysis of the text
 ```
 
-#### 2.2.4 Prompt Templates
-```yaml
-prompt:
-  type: template|auto
-  purpose: str
-  template: str
-```
+## Advanced Features
 
-#### 2.2.5 Masks (Convex Transition)
+### Masks
+For parallel-to-sequential transitions, use masks to format data:
+
 ```yaml
 mask:
-  type: template|auto
-  variables: list[str]
-  template: str
+type: auto
+variables:
+- result.field1
+- result.field2
 ```
 
-## 3. Runtime Behavior
+A template is automatically generated based on the supplied variables to the mask. This template is used to format the data before passing it to the final chainlink.
 
-### 3.1 Initialization Sequence
-1. Parse .fctr file
-2. Validate type definitions
-3. Initialize chain links
-4. Configure execution engine
-5. Prepare caching system
+### Caching
+The system automatically caches generated prompts, and masks. Improving performance for repeated runs of the same chains.
 
-### 3.2 Execution Flow
-1. Input validation
-2. Chain link traversal
-3. Transition protocol selection
-4. Parallel context management
-5. Output collection
-6. Error handling
+## Conclusion
+ChainFactory makes it easy to create complex LLM workflows without writing code. Its simple syntax, automatic prompt generation, and smart features let you focus on what matters - designing great AI workflows.
 
-### 3.3 Resource Management
-1. Thread pool sizing
-2. Memory allocation
-3. Model token limits
-4. Cache storage
+Remember that this is just an overview - experiment with the examples to discover more possibilities!
 
-### 3.4 Performance Characteristics
-- Parallel efficiency: O(n/p) where n=chains, p=parallel_max
-- Memory usage: O(m*c) where m=max_tokens, c=chain_count
-- Cache storage: O(t*v) where t=templates, v=variables
-
-## 4. API Reference
-
-### 4.1 ChainFactoryEngine
-```python
-class ChainFactoryEngine:
-    def __init__(self, factory: ChainFactory, config: ChainFactoryEngineConfig)
-    def __call__(self, *args, **kwargs) -> Any
-    @classmethod
-    def from_file(cls, file_path: str, config: ChainFactoryEngineConfig)
-    @classmethod
-    def from_str(cls, content: str, config: ChainFactoryEngineConfig)
-```
-
-### 4.2 ChainFactory
-```python
-class ChainFactory:
-    def __init__(self, links: list[ChainFactoryLink])
-    @classmethod
-    def from_file(cls, file_path: str, **kwargs)
-    @classmethod
-    def from_str(cls, content: str, **kwargs)
-```
-
-## 5. Error Conditions
-
-### 5.1 Validation Errors
-- Invalid type definitions
-- Missing required fields
-- Type mismatches
-- Invalid transitions
-
-### 5.2 Runtime Errors
-- Execution failures
-- Resource exhaustion
-- Invalid parallel contexts
-- Cache failures
-
-### 5.3 Configuration Errors
-- Invalid chain definitions
-- Invalid transition specifications
-- Invalid mask templates
-- Invalid prompt templates
-
-## 6. Extensibility
-
-### 6.1 Custom Type Extensions
-- Type definition protocol
-- Validation hooks
-- Serialization handlers
-
-### 6.2 Provider Extensions
-- Model interface protocol
-- Provider registration
-- Configuration handling
-
-### 6.3 Cache Extensions
-- Cache backend protocol
-- Cache key generation
-- Invalidation hooks
-```
-
-## 7. Sequence Diagrams and Control Flow
-
-### 7.1 Chain Initialization Flow
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Engine
-    participant Factory
-    participant Links
-    participant Cache
-
-    Client->>Engine: from_file(path)
-    Engine->>Factory: parse_fctr_file()
-    Factory->>Links: create_chain_links()
-    Links->>Cache: load_cached_templates()
-    Cache-->>Links: cached_templates
-    Links-->>Factory: initialized_links
-    Factory-->>Engine: factory_instance
-    Engine-->>Client: engine_instance
-```
-
-### 7.2 Sequential Chain Execution
-```mermaid
-sequenceDiagram
-    participant Engine
-    participant Chain1
-    participant Chain2
-    participant LLM
-
-    Engine->>Chain1: invoke(input)
-    Chain1->>LLM: execute_prompt()
-    LLM-->>Chain1: raw_response
-    Chain1->>Chain1: validate_output()
-    Chain1-->>Engine: validated_output
-    Engine->>Chain2: filter_and_invoke(output)
-    Chain2->>LLM: execute_prompt()
-    LLM-->>Chain2: raw_response
-    Chain2->>Chain2: validate_output()
-    Chain2-->>Engine: final_output
-```
-
-### 7.3 Parallel Chain Execution
-```mermaid
-sequenceDiagram
-    participant Engine
-    participant Splitter
-    participant ThreadPool
-    participant Chain[n]
-    participant Reducer
-
-    Engine->>Splitter: split_input()
-    Splitter->>ThreadPool: create_workers()
-    ThreadPool->>Chain[n]: parallel_invoke()
-    Chain[n]-->>ThreadPool: parallel_results
-    ThreadPool->>Reducer: collect_results()
-    Reducer-->>Engine: aggregated_output
-```
-
-### 8 Environment Requirement- Python 3.8+
-- ThreadPoolExecutor support
-- File system access for caching
-- Network access for LLM providers
-
-### 8.1 Resource Requirements (TODO)
-```python
-class ResourceRequirements:
-    min_memory_mb: int = 512
-    recommended_memory_mb: int = 1024
-    min_cpu_cores: int = 2
-    recommended_cpu_cores: int = 4
-    disk_space_mb: int = 100
-    network_bandwidth_mbps: int = 10
-```
-
-### 8.2 Configuration Management (In the kitchen...)
-```yaml
-deployment:
-  cache:
-    path: .chainfactory/cache
-    max_size_mb: 1000
-    cleanup_interval: 3600
-
-  execution:
-    max_parallel: 10
-    timeout_seconds: 30
-    retry_attempts: 3
-
-  monitoring:
-    log_level: INFO
-    metrics_enabled: true
-    trace_enabled: false
-```
-
-## 9. Performance Optimization Considerations
-
-### 9.1 Parallel Execution Optimization
-```python
-def optimize_parallel_execution(chain_count: int, available_cores: int) -> int:
-    """Calculate optimal parallel execution parameters."""
-    return min(
-        chain_count,
-        available_cores * 2,
-        MAX_PARALLEL_CHAINS
-    )
-```
-
-### 9.2 Cache Optimization
-```python
-def optimize_cache_strategy(
-    memory_available_mb: int,
-    avg_template_size_kb: int,
-    request_pattern: str
-) -> CacheConfig:
-    """Calculate optimal cache parameters."""
-    return CacheConfig(
-        max_size=min(memory_available_mb * 0.1, DEFAULT_CACHE_SIZE),
-        eviction_policy='lru' if request_pattern == 'temporal' else 'lfu',
-        compression_enabled=avg_template_size_kb > 10
-    )
-```
-
-## 10. Error Recovery and Resilience
-
-### 10.1 Retry Strategy - When and Where to Retry (TODO)
-```python
-class RetryStrategy:
-    max_attempts: int = 3
-    backoff_factor: float = 1.5
-    max_backoff_seconds: int = 30
-
-    def calculate_delay(self, attempt: int) -> float:
-        """Calculate delay for retry attempt."""
-        delay = self.backoff_factor ** attempt
-        return min(delay, self.max_backoff_seconds)
-```
-
-### 10.2 Circuit Breaker Pattern (TODO)
-```python
-class ChainCircuitBreaker:
-    failure_threshold: int = 5
-    reset_timeout_seconds: int = 60
-    half_open_timeout_seconds: int = 30
-
-    def should_execute(self, chain: ChainFactoryLink) -> bool:
-        """Determine if chain should execute based on failure history."""
-        if self.is_open(chain):
-            if time.time() - self.last_failure(chain) > self.reset_timeout_seconds:
-                return self.try_half_open(chain)
-            return False
-        return True
-```
-
-### 10.3 Fallback Mechanisms (TODO)
-```python
-class ChainFallback:
-    def execute_with_fallback(
-        self,
-        primary_chain: ChainFactoryLink,
-        fallback_chain: ChainFactoryLink,
-        input_data: dict
-    ) -> dict:
-        """Execute chain with fallback option."""
-        try:
-            return primary_chain.execute(input_data)
-        except Exception as e:
-            logger.warning(f"Primary chain failed: {e}")
-            return fallback_chain.execute(input_data)
-```
-
-The document provides detailed implementation guidance, testing requirements, deployment considerations, and best practices for extending and optimizing the ChainFactory system - some of it is bloat though.
+## Getting Help
+- Check the examples folder for more patterns
+- Use the built-in validation to catch errors early
+- Break complex chains into smaller, reusable pieces
+- Ping me directly on email: garkotipankaj@gmail.com
