@@ -111,6 +111,7 @@ out:
 ```
 examples/WeirdSnackCombo.fctr
 
+```yaml
 @chainlink extends WeirdSnackCombos.fctr
 purpose: Write a satirical article about the provided trivial subject bringing the demise of modern society.
 mask:
