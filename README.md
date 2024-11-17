@@ -135,9 +135,9 @@ When possible, let the system generate prompts using clear one-liner purpose sta
 Define input/output types for better reliability:
 ```yaml
 def:
-MyType:
-field1: str
-field2: int?
+  MyType:
+    field1: str
+    field2: int?
 ```
 
 3. **Chain Structure - General Workflows**
@@ -149,7 +149,7 @@ field2: int?
 Add field descriptions using `%`. This is not only for readability, but also for the LLM to understand the context of the field. It is basically a part of the prompting process.
 ```yaml
 out:
-review: str % A comprehensive analysis of the text
+  review: str % A comprehensive analysis of the text
 ```
 
 ## Advanced Features
@@ -159,10 +159,10 @@ For parallel-to-sequential transitions, use masks to format data:
 
 ```yaml
 mask:
-type: auto
-variables:
-- result.field1
-- result.field2
+  type: auto
+  variables:
+    - result.field1
+    - result.field2
 ```
 
 A template is automatically generated based on the supplied variables to the mask. This template is used to format the data before passing it to the final chainlink.
