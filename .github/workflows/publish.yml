@@ -1,0 +1,32 @@
+name: Build and Publish to PyPI
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Run tests
+        run: pytest
+
+      - name: Build Package
+        run: poetry build
+
+      - name: Publish to PyPI
+        env:
+          # Ensure PYPI_API_TOKEN is defined in repository secrets
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: poetry publish -u __token__ -p $PYPI_API_TOKEN --build -y
