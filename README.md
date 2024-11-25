@@ -93,7 +93,7 @@ purpose: critically analyze each haiku
 ### 2. Weird Snack Combo Generator + Parallel Filter + Email Writera
 
 ```yaml
-@chainlink
+@chainlink generate --
 purpose: Generate {num} combinations of snacks that go well with each other. Generate {num} such combinations.
 def:
   SnackCombo:
@@ -102,29 +102,13 @@ def:
 out:
   combos: list[Combo]
 
-@chainlink ||a # runs {num} instance in parallel
+@chainlink comment || # runs len(combos) instances of the chainlink
 purpose: Given a snack combination, sarcastically comment on why it's the weirdest snack combination ever.
 in:
   combos.element.items: str
 out:
   res: list[SnackCombo]
 ```
-examples/WeirdSnackCombo.fctr
-
-```yaml
-@chainlink extends WeirdSnackCombos.fctr
-purpose: Write a satirical article about the provided trivial subject bringing the demise of modern society.
-mask:
-  variables:
-    - res.element.items
-    - res.element.comment
-out:
-    article: str
-```
-examples/Article.fctra
-
-When the above file is loaded, the only input required is the number of combos to generate. The system will automatically generate the prompt template and execute the chain - at the end, we get a satirical article about the weird snack combos.
-
 
 ## Best Practices
 
