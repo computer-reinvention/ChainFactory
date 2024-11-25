@@ -30,7 +30,7 @@ class ChainFactoryEngineConfig:
     max_parallel_chains: int = 10
     print_trace: bool = False
     print_trace_for_single_chain: bool = False
-    prompt_between_executions: bool = True  # New field
+    pause_between_executions: bool = True
 
 
 class ChainFactoryEngine:
@@ -289,7 +289,7 @@ class ChainFactoryEngine:
         previous_output: Any,
         next_chain_name: str,
     ) -> bool:
-        if not self.config.prompt_between_executions:
+        if not self.config.pause_between_executions:
             return True
 
         if not previous_chain_name:

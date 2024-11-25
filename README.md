@@ -170,6 +170,43 @@ A template is automatically generated based on the supplied variables to the mas
 ### Caching
 The system automatically caches generated prompts, and masks. Improving performance for repeated runs of the same chains.
 
+## Configuring the ChainFactory Engine
+
+ChainFactory Engine can be configured using the `ChainFactoryEngineConfig` class. You can control aspects such as the language model used, caching behavior, concurrency, and execution traces. Below are the configuration options available:
+
+- `model`: Specifies the model to use (default is `"gpt-4o"`).
+- `temperature`: Sets the temperature for the model, which controls the randomness of the outputs (default is `0`).
+- `cache`: Enables caching of prompts and results (default is `False`).
+- `provider`: Defines the provider for the language model, with supported options including `"openai"`, `"anthropic"`, and `"ollama"`.
+- `max_tokens`: Specifies the maximum tokens allowed per response (default is `1024`).
+- `model_kwargs`: A dictionary of additional keyword arguments to pass to the model.
+- `max_parallel_chains`: Sets the maximum number of chains that can execute in parallel (default is `10`).
+- `print_trace`: If `True`, enables printing of execution traces (default is `False`).
+- `print_trace_for_single_chain`: Similar to `print_trace` but for single chain execution (default is `False`).
+- `pause_between_executions`: If `True`, prompts for confirmation before executing the next chain (default is `True`).
+
+To use these configurations, you can pass them when initializing the ChainFactoryEngine:
+
+```python
+from chainfactory.core.engine.chainfactory_engine import ChainFactoryEngine, ChainFactoryEngineConfig
+
+config = ChainFactoryEngineConfig(
+    model="gpt-4o",
+    temperature=0.7,
+    cache=True,
+    provider="openai",
+    max_tokens=2048,
+    max_parallel_chains=5,
+    print_trace=True,
+    prompt_between_executions=True
+)
+
+engine = ChainFactoryEngine.from_file("examples/haiku.fctr", config)
+```
+
+This configuration allows you to fine-tune the behavior of the ChainFactory to suit your needs.
+
+
 ## Conclusion
 ChainFactory makes it easy to create complex LLM workflows without writing code. Its simple syntax, automatic prompt generation, and smart features let you focus on what matters - designing great AI workflows.
 
