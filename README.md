@@ -1,4 +1,4 @@
-# ChainFactory: Run Structured LLM Inference with Easy Parallelism (`chainfactory-py 0.0.12`)
+# ChainFactory: Run Structured LLM Inference with Easy Parallelism (`chainfactory-py 0.0.13`)
 ## Introduction
 ChainFactory is a powerful system for creating complex, multi-step LLM workflows using a simple YAML-like syntax. It allows you to connect multiple prompts in a chain, with outputs from one step feeding into inputs of subsequent steps. The most important feature is the reduced reliance on exact wording of the prompts and easy parallel execution in intermediate steps.
 
