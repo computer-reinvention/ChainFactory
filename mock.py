@@ -175,12 +175,14 @@ def haiku_generate_review_via_extends(topic="Python", num=2):
         topic (str, optional): The topic of the haiku. Defaults to "Python".
         num (int, optional): The number of haikus to generate. Defaults to 2.
     """
-    haiku_review_engine = Engine.from_file("examples/haiku_extends.fctr")
+    config = ChainFactoryEngineConfig()
+    config.print_trace = True
+    haiku_review_engine = Engine.from_file("examples/haiku_extends.fctr", config=config)
 
     res = haiku_review_engine(topic=topic, num=num)
 
     print("==================")
-    pprint(res)
+    pprint(res.review)
     print("==================")
 
 

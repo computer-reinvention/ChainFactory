@@ -5,8 +5,8 @@ def:
     haiku: str
     explanation: str
 out:
-	topic: str % return the original topic
-  haikus : list[Haiku]
+    topic: str % return the original topic
+    haikus : list[Haiku]
 
 @chainlink haiku-critic ||
 purpose: critical analysis of a haiku in a short paragraph
