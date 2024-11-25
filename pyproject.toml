@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "chainfactory-py"
-version = "0.0.12a"
+version = "0.0.13"
 description = "Structured LLM Inference with Easy Parallelism"
 authors = ["Pankaj Garkoti <garkotipankaj@gmail.com>"]
 readme = "README.md"
@@ -19,6 +19,7 @@ langchain-anthropic = "^0.3.0"
 langchain-ollama = "^0.2.0"
 langchain-experimental = "^0.3.3"
 ipykernel = "^6.29.5"
+colorama = "^0.4.6"
 
 [build-system]
 requires = ["poetry-core"]

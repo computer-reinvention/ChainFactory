@@ -36,21 +36,13 @@ class FactoryMask:
                 raise ValueError("FactoryMask cannot be initialized without variables.")
 
         for var in variables:
-            print("VARIABLE IN: ", var)
-            if "." in var:
-                original = var
-                cleaned = var.replace(".", "$")
-                self.variables.append(cleaned)
-                self.template = self.template.replace(
-                    "{" + original + "}",
-                    "{" + cleaned + "}",
-                )
-            else:
-                self.variables.append(var)
-                self.template = self.template.replace("{" + var + "}", "{" + var + "}")
-
-            print("VARIABLE CLEANED: ", self.variables[-1])
-            print("RENDERED: ", self.template)
+            original = var
+            cleaned = var.replace(".", "$")
+            self.variables.append(cleaned)
+            self.template = self.template.replace(
+                "{" + original + "}",
+                "{" + cleaned + "}",
+            )
 
     def render(self, variables: dict[str, Any]) -> str:
         """
