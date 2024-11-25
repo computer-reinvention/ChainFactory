@@ -108,12 +108,9 @@ class ChainFactoryEngine:
         link: ChainFactoryLink = current["link"]
         previous_link: ChainFactoryLink = previous["link"]
         previous_output: dict = previous["output"]
-        previous_link_type: Literal["sequential", "parallel"]
-
-        if not previous_link:
-            previous_link_type = "sequential"
-        else:
-            previous_link_type = previous_link._link_type
+        previous_link_type: Literal["sequential", "parallel"] = (
+            "sequential" if not previous_link else previous_link._link_type
+        )
 
         matching_vars = []
         matching_list_vars = []
