@@ -187,4 +187,4 @@ def haiku_generate_review_via_extends(topic="Python", num=2):
 
 
 if __name__ == "__main__":
-    haiku_generate_review_via_extends()
+    haiku_generate_review_validate_summary()

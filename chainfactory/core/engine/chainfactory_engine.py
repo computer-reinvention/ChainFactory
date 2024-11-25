@@ -10,6 +10,7 @@ from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_ollama import ChatOllama
 from langchain_core.runnables import RunnableSerializable
+from colorama import Fore, Style
 
 from chainfactory.core.factory import ChainFactoryLink, ChainFactory
 
@@ -29,6 +30,7 @@ class ChainFactoryEngineConfig:
     max_parallel_chains: int = 10
     print_trace: bool = False
     print_trace_for_single_chain: bool = False
+    prompt_between_executions: bool = True  # New field
 
 
 class ChainFactoryEngine:
@@ -42,20 +44,20 @@ class ChainFactoryEngine:
         self.chains = self._create_chains(factory.links, config)
 
     def _print_trace(self, trace: list[dict]):
-        """
-        Pretty print the execution trace.
-        """
-        print("Execution Trace:")
+        print(Fore.YELLOW + "Execution Trace:" + Style.RESET_ALL)
         for res in trace:
-            print("=" * 80)
-            print(f"{res['name']}: {res['execution_time']} seconds")
-            print("Input:")
+            print(Fore.YELLOW + "=" * 80 + Style.RESET_ALL)
+            print(
+                Fore.CYAN
+                + f"{res['name']}: {res['execution_time']} seconds"
+                + Style.RESET_ALL
+            )
+            print(Fore.WHITE + "Input:" + Style.RESET_ALL)
             pprint(res["input"])
-            print("Output:")
+            print(Fore.WHITE + "Output:" + Style.RESET_ALL)
             pprint(res["output"])
-
         if len(trace) > 0:
-            print("=" * 80)
+            print(Fore.YELLOW + "=" * 80 + Style.RESET_ALL)
 
     def __call__(self, *args, **kwargs) -> Any:
         """
@@ -261,7 +263,10 @@ class ChainFactoryEngine:
                     link._name: [
                         f"({i + 1}) "
                         + link.mask.render(
-                            {k: output.get(k) for k in link.mask.variables}
+                            {
+                                k: output.get(k.split("$")[-1])
+                                for k in link.mask.variables
+                            }
                         )
                         for i, output in enumerate(previous_output)
                     ]
@@ -277,6 +282,65 @@ class ChainFactoryEngine:
                 raise ValueError(
                     f"Invalid link type: {previous_link._link_type} for chain {previous['name']}"
                 )
+
+    def proceed_yes_no(
+        self,
+        previous_chain_name: str | None,
+        previous_output: Any,
+        next_chain_name: str,
+    ) -> bool:
+        if not self.config.prompt_between_executions:
+            return True
+
+        if not previous_chain_name:
+            print(
+                Fore.GREEN
+                + f"Starting execution with the first chainlink: {next_chain_name}"
+                + Style.RESET_ALL
+            )
+        else:
+            if previous_output is None:
+                print(
+                    Fore.YELLOW
+                    + f"\nOutput from '{previous_chain_name}' is None."
+                    + Style.RESET_ALL
+                )
+            elif not previous_output:
+                print(
+                    Fore.YELLOW
+                    + f"\nOutput from '{previous_chain_name}' is empty."
+                    + Style.RESET_ALL
+                )
+            else:
+                print(
+                    Fore.CYAN
+                    + f"\nOutput from '{previous_chain_name}':"
+                    + Style.RESET_ALL
+                )
+                pprint(previous_output)
+
+            print(
+                Fore.GREEN
+                + f"Next Chainlink to be executed: {next_chain_name}"
+                + Style.RESET_ALL
+            )
+
+        while True:
+            response = (
+                input(
+                    Fore.WHITE
+                    + "Do you want to proceed with the next chainlink? (Yes/No): "
+                    + Style.RESET_ALL
+                )
+                .strip()
+                .lower()
+            )
+            if response in ["yes", "y", ""]:
+                return True
+            elif response in ["no", "n"]:
+                return False
+            else:
+                continue
 
     def _execute_chains(self, initial_input: dict) -> list[dict]:
         """
@@ -318,6 +382,15 @@ class ChainFactoryEngine:
                 "link": link,
                 "chain": chain,
             }
+
+            should_proceed = self.proceed_yes_no(
+                previous_chain_name=previous_chain_name,
+                previous_output=previous_output,
+                next_chain_name=name,
+            )
+
+            if not should_proceed:
+                break
 
             t1 = time.time()
             match link._link_type:
@@ -377,7 +450,6 @@ class ChainFactoryEngine:
                 case "ollama":
                     llm = ChatOllama(
                         temperature=config.temperature,
-                        model_name=config.model,
                         **config.model_kwargs,
                     )
                 case _:
