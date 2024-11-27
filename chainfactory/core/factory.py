@@ -20,6 +20,7 @@ from .components import (
     FactoryOutput,
     FactoryInput,
     FactoryMask,
+    FactoryTool,
 )
 
 
@@ -37,6 +38,8 @@ class ChainFactoryLink:
     output: Optional[FactoryOutput]
     prompt: Optional[FactoryPrompt]
     mask: Optional[FactoryMask]
+    is_tool: bool = False
+    tool: Optional[FactoryTool]
 
     def __init__(
         self,
@@ -47,6 +50,8 @@ class ChainFactoryLink:
         output: Optional[FactoryOutput] = None,
         prompt: Optional[FactoryPrompt] = None,
         mask: Optional[FactoryMask] = None,
+        is_tool: bool = False,
+        tool: Optional[FactoryTool] = None,
         link_type: Literal["sequential", "parallel"] = "sequential",
     ):
         self._name = name
@@ -60,6 +65,8 @@ class ChainFactoryLink:
         )
         self.output: Optional[FactoryOutput] = output  # section `out`
         self._link_type = link_type
+        self.is_tool = is_tool
+        self.tool = tool
 
     @classmethod
     def from_file(
@@ -72,6 +79,8 @@ class ChainFactoryLink:
         global_defs: FactoryDefinitions | None = None,
         internal_engine_cls: Any | None = None,
         internal_engine_config: Any | None = None,
+        is_tool: bool = False,
+        **kwargs,
     ) -> "ChainFactoryLink":
         """
         Parse the source .fctr file into a `ChainFactoryLink` object.
@@ -88,6 +97,42 @@ class ChainFactoryLink:
             source = yaml.safe_load(open(file_path, "r"))
         else:
             raise ValueError("Either file_path or file_object must be provided.")
+
+        tool = None
+        if is_tool:
+            method = kwargs.get("tool_method")
+            url = source.get("url")
+            headers = source.get("headers")
+            params = source.get("params")
+            data = source.get("data")
+            input_variables = source.get("in")
+
+            if method not in ["get", "post"]:
+                raise ValueError(
+                    f"Invalid method: {method}. Must be either GET or POST."
+                )
+
+            if not url:
+                raise ValueError("url cannot be empty.")
+
+            tool = FactoryTool(
+                name=name,
+                url=url,
+                method=method,
+                headers=headers,
+                params=params,
+                data=data,
+                input_variables=input_variables,
+            )
+
+            return cls(
+                name=name,
+                source=file_path,
+                parsed_source=source,
+                tool=tool,
+                is_tool=is_tool,
+                link_type=link_type,
+            )
 
         input = source.get("in")
         purpose = source.get("purpose")
@@ -107,7 +152,9 @@ class ChainFactoryLink:
             purpose = prompt.get("purpose")
 
         if not prompt and not purpose:
-            raise ValueError("Neither purpose nor a prompt template were provided.")
+            raise ValueError(
+                "Neither purpose nor a prompt template were provided. Both are required if the chainlink is not a tool."
+            )
 
         factory_input = (
             None
@@ -127,7 +174,7 @@ class ChainFactoryLink:
             if cached := load_cache_file(cachekey):
                 print(
                     f"[{name}]",
-                    "Loading prompt template from file cached for purpose:",
+                    "Loading Cached: ",
                     purpose,
                     f"({cachekey})",
                 )
@@ -146,7 +193,7 @@ class ChainFactoryLink:
                     file_content = file.read()
                     print(
                         f"[{name}]",
-                        "Generating new prompt template for purpose:",
+                        "Generating Prompt Template: ",
                         purpose,
                         f"({cachekey})",
                     )
@@ -352,7 +399,7 @@ class ChainFactory:
             return cls(
                 links=[
                     ChainFactoryLink.from_file(
-                        name="chainlink-0",
+                        name="chainlink-" + str(uuid.uuid4().hex),
                         file_content=content,
                         file_path=path,
                     ),
@@ -360,6 +407,7 @@ class ChainFactory:
             )
 
         for i, line in enumerate(lines):
+            method = None
             if not line:
                 continue
 
@@ -368,6 +416,47 @@ class ChainFactory:
 
             chainlink_directive = line.strip().startswith("@chainlink")
             extends_directive = line.strip().startswith("@extends")
+            tool_directive = line.strip().startswith("@tool")
+
+            if tool_directive:
+                tool_parts = [part.strip() for part in line.strip().split(" ")]
+                if len(tool_parts) < 3:  # @tool [method] [name] ||
+                    raise ValueError(
+                        f"Error on line {i}. Invalid @tool directive. Must be of the form `@tool [method] [name]`."
+                    )
+
+                method = tool_parts[1]
+                name = tool_parts[2]
+
+                if method.lower() not in ["get", "post"]:
+                    raise ValueError(
+                        f"Error on line {i}. Invalid method. Must be either GET or POST."
+                    )
+
+                current_part = name
+                if len(tool_parts) == 3:
+                    parts[name] = {
+                        "beginning_line": i,
+                        "link_type": "sequential",
+                        "is_tool": tool_directive,
+                        "method": method,
+                        "lines": [],
+                    }
+                elif len(tool_parts) == 4:
+                    parts[name] = {
+                        "beginning_line": i,
+                        "link_type": (
+                            "sequential" if tool_parts[3] == "--" else "parallel"
+                        ),
+                        "is_tool": True,
+                        "method": method,
+                        "lines": [],
+                    }
+                else:
+                    raise ValueError(
+                        f"Error on line {i}. Invalid @tool directive. Must be of the form `@tool [method] [name] [link_type]`."
+                    )
+                continue
 
             if extends_directive:
                 if base_chain_path:
@@ -410,7 +499,6 @@ class ChainFactory:
                     raise ValueError(
                         f"Error on line {i}. Invalid @chainlink definition. Another chainlink with the same name exists."
                     )
-
             elif len(tokens) == 2:
                 unknown_token = tokens[1]
                 if unknown_token in ["sequential", "parallel", "--", "||"]:
@@ -445,23 +533,22 @@ class ChainFactory:
                     f"Error on line {part['beginning_line']}. Chainlink definition cannot be empty."
                 )
 
-            if (
+            convex = (
                 previous_link
                 and previous_link._link_type == "parallel"
                 and part["link_type"] == "sequential"
-            ):
-                convex = True
-            else:
-                convex = False
+            )
 
             link = ChainFactoryLink.from_file(
                 name=name,
                 file_content="\n".join(part["lines"]).replace("\t", "  "),
                 link_type=part["link_type"],
-                convex=convex,
+                convex=bool(convex),
                 global_defs=global_defs,
                 internal_engine_cls=internal_engine_cls,
                 internal_engine_config=internal_engine_config,
+                is_tool=part.get("is_tool", False),
+                tool_method=part.get("method", None),
             )
 
             if previous_link and previous_link._link_type == "parallel":

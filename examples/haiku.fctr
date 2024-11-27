@@ -1,7 +1,9 @@
 # This is a sample .fctr file for generating haikus using a simple prompt template.
-@chainlink haiku-generator --
-prompt: |
-  Write {num} haiku(s) about {topic}. Use the standard 5-7-5 syllable pattern.
+@chainlink haiku --
+purpose: generate haikus
+in:
+	num: int = 2
+	topic: str = "Python"
 def:
   Haiku:
     haiku: str % The haiku text.
