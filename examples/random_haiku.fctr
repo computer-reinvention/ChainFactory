@@ -14,3 +14,6 @@ in:
   topics.element: str
 out:
 	haiku: str
+
+@tool post test
+url: http://localhost:8000

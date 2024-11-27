@@ -214,7 +214,10 @@ class ChainFactoryEngine:
             futures = []
             results = []
             for input in current_inputs:
-                future = executor.submit(chain.invoke, input)
+                fn = chain.invoke
+                if link.is_tool:
+                    fn = link.tool.execute
+                future = executor.submit(fn, input)
                 futures.append(future)
 
             for future in as_completed(futures):
@@ -240,21 +243,29 @@ class ChainFactoryEngine:
 
         match previous_link_type:
             case "sequential":
-                assert link.prompt
-                input = {
-                    k: v
-                    for k, v in previous_output.items()
-                    if k in link.prompt.input_variables
-                }
+                if link.tool:
+                    matching_vars = [
+                        k for k in link.tool.input_variables if k in previous_output
+                    ]
+                    input = {
+                        k: v for k, v in previous_output.items() if k in matching_vars
+                    }
+                    return link.tool.execute(input)
+                else:
+                    assert link.prompt
+                    input = {
+                        k: v
+                        for k, v in previous_output.items()
+                        if k in link.prompt.input_variables
+                    }
+                    if not input:
+                        raise ValueError(
+                            f"Piping failed. No matching input variables found for linking chains {previous['name']} -> {current['name']}."
+                        )
 
-                if not input:
-                    raise ValueError(
-                        f"Piping failed. No matching input variables found for linking chains {previous['name']} -> {current['name']}."
-                    )
-
-                return chain.invoke(input)
+                    return chain.invoke(input)
             case "parallel":
-                assert link.mask
+                assert link.mask and not link.is_tool
                 assert previous_link._name in previous_output
                 previous_output = previous_output[previous_link._name]
                 assert isinstance(previous_output, list)
@@ -276,6 +287,9 @@ class ChainFactoryEngine:
                     raise ValueError(
                         f"Piping failed. No matching variables found for linking chains {previous['name']} -> {current['name']}. Please note that this is a convex chain and hence the matching variables are determined by the mask."
                     )
+
+                if link.is_tool:
+                    return link.tool.execute(input)
 
                 return chain.invoke(input)
             case _:
@@ -454,6 +468,13 @@ class ChainFactoryEngine:
                     )
                 case _:
                     raise ValueError(f"Invalid provider: {config.provider}")
+
+            if link.is_tool:
+                runnables[link._name] = {
+                    "chain": None,
+                    "link": link,
+                }
+                continue
 
             if link.output is None:
                 model = llm

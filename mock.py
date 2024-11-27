@@ -186,5 +186,18 @@ def haiku_generate_review_via_extends(topic="Python", num=2):
     print("==================")
 
 
+def tool_use(topic="Python", num=2):
+    config = ChainFactoryEngineConfig(
+        print_trace=True,
+        pause_between_executions=True,
+    )
+    engine = Engine.from_file("examples/tooluse.fctr", config=config)
+    res = engine(topic=topic, num=num)
+
+    print("==================")
+    pprint(res)
+    print("==================")
+
+
 if __name__ == "__main__":
-    haiku_generate_review_validate_summary()
+    tool_use()
