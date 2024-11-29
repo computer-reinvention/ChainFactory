@@ -1,0 +1,6 @@
+@chainlink cancel
+purpose: return true if a given input email explicitly contains a cancellation request
+in:
+	email_body: str
+out:
+  is_cancellation_request: bool

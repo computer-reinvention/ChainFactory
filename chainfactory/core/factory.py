@@ -3,15 +3,16 @@ This module defines the core `Factory` type representation.
 """
 
 from datetime import datetime
-import time
 import uuid
 import yaml
 import farmhash
-from typing import Any, Optional
-from dataclasses import dataclass
+from typing import Any, Callable, Optional
+from dataclasses import dataclass, field
 from typing import Any, Optional, Literal
 import importlib.resources as pkg_resources
+from abc import abstractmethod
 
+from chainfactory.core.engine.chainfactory_engine_config import ChainFactoryEngineConfig
 from chainfactory.core.utils import load_cache_file, save_cache_file
 
 from .components import (
@@ -23,25 +24,82 @@ from .components import (
 )
 
 
-class ChainFactoryLink:
-    """
-    This type is the representation of a factory.
-    """
-
+class BaseChainFactoryLink:
     _name: str
-    _source: Optional[str]
-    _parsed_source: Optional[Any]
     _link_type: Literal["sequential", "parallel"] = "sequential"
-    global_definitions: Optional[FactoryDefinitions]
-    definitions: Optional[FactoryDefinitions]
-    output: Optional[FactoryOutput]
-    prompt: Optional[FactoryPrompt]
-    mask: Optional[FactoryMask]
+    _is_tool: bool = False
 
     def __init__(
         self,
         name: str,
-        source: Optional[str] = None,
+        link_type: Literal["sequential", "parallel"] = "sequential",
+        is_tool: bool = False,
+    ):
+        self._name = name
+        self._link_type = link_type
+        self._is_tool = is_tool
+
+    @abstractmethod
+    def execute(self, *args, **kwargs) -> dict:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def from_file(
+        cls,
+        file_path: str,
+        file_content: str | None = None,
+        *args,
+        **kwargs,
+    ) -> "BaseChainFactoryLink":
+        pass
+
+
+class ChainFactoryTool(BaseChainFactoryLink):
+    def __init__(
+        self,
+        name: str,
+        source: dict,
+        link_type: Literal["sequential", "parallel"] = "sequential",
+        fn: Callable[..., dict] | None = None,
+    ):
+        super().__init__(
+            name=name,
+            link_type=link_type,
+            is_tool=True,
+        )
+        self.fn = fn
+        input = source.get("in", {})
+        self.input = FactoryInput(attributes=input)
+
+    def execute(self, **kwargs) -> dict:
+        if not self.fn:
+            raise ValueError("ChainFactoryTool.fn is None. Cannot execute.")
+
+        if self.input.input_variables:
+            input = {k: v for k, v in kwargs.items() if k in self.input.input_variables}
+        else:
+            input = kwargs
+
+        return self.fn(**input)
+
+    @classmethod
+    def from_file(cls):
+        """
+        We do not need to parse this.
+        """
+        raise NotImplementedError
+
+
+class ChainFactoryLink(BaseChainFactoryLink):
+    """
+    This type is the representation of a factory.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        source: Optional[dict] = None,
         parsed_source: Optional[Any] = None,
         definitions: Optional[FactoryDefinitions] = None,
         output: Optional[FactoryOutput] = None,
@@ -65,13 +123,13 @@ class ChainFactoryLink:
     def from_file(
         cls,
         name: str,
-        file_path: str | None = None,
-        file_content: str | None = None,
+        source: dict,
         link_type: Literal["sequential", "parallel"] = "sequential",
         convex: bool = False,
         global_defs: FactoryDefinitions | None = None,
         internal_engine_cls: Any | None = None,
         internal_engine_config: Any | None = None,
+        **kwargs,
     ) -> "ChainFactoryLink":
         """
         Parse the source .fctr file into a `ChainFactoryLink` object.
@@ -82,13 +140,6 @@ class ChainFactoryLink:
         Returns:
             ChainFactoryLink: The parsed `ChainFactoryLink` object.
         """
-        if file_content:
-            source = yaml.safe_load(file_content)
-        elif file_path:
-            source = yaml.safe_load(open(file_path, "r"))
-        else:
-            raise ValueError("Either file_path or file_object must be provided.")
-
         input = source.get("in")
         purpose = source.get("purpose")
         prompt = source.get("prompt")
@@ -107,7 +158,9 @@ class ChainFactoryLink:
             purpose = prompt.get("purpose")
 
         if not prompt and not purpose:
-            raise ValueError("Neither purpose nor a prompt template were provided.")
+            raise ValueError(
+                "Neither purpose nor a prompt template were provided. Both are required if the chainlink is not a tool."
+            )
 
         factory_input = (
             None
@@ -116,7 +169,7 @@ class ChainFactoryLink:
                 attributes=input,
             )
         )
-        input_variables = None if not factory_input else factory_input.input_variables
+        input_variables = [] if not factory_input else factory_input.input_variables
 
         if purpose:
             cachekey = str(
@@ -124,15 +177,14 @@ class ChainFactoryLink:
                     purpose + ",".join([name] if convex else sorted(input_variables)),
                 )
             )
-            if cached := load_cache_file(cachekey):
+            cached: dict[str, str] | None = load_cache_file(cachekey)
+            if cached:
                 print(
-                    f"[{name}]",
-                    "Loading prompt template from file cached for purpose:",
-                    purpose,
-                    f"({cachekey})",
+                    f"[{name}] Loading prompt template from cache for given purpose (hash: {cachekey}).",
                 )
+
                 factory_prompt = FactoryPrompt(
-                    template=cached.get("prompt_template"),
+                    template=cached.get("prompt_template", ""),
                     purpose=purpose,
                     input_variables=input_variables,
                 )
@@ -146,13 +198,14 @@ class ChainFactoryLink:
                     file_content = file.read()
                     print(
                         f"[{name}]",
-                        "Generating new prompt template for purpose:",
+                        "Generating Prompt Template: ",
                         purpose,
                         f"({cachekey})",
                     )
                     engine = internal_engine_cls.from_str(
                         file_content,
                         config=internal_engine_config,
+                        for_internal_use=True,
                     )
                     generated_prompt_template = engine(
                         purpose=purpose,
@@ -240,7 +293,9 @@ class ChainFactoryLink:
                         )
 
                         engine = internal_engine_cls.from_str(
-                            file_content, config=internal_engine_config
+                            file_content,
+                            config=internal_engine_config,
+                            for_internal_use=True,
                         )
 
                         generated_mask_template = engine(
@@ -276,7 +331,7 @@ class ChainFactoryLink:
 
         return cls(
             name=name,
-            source=file_path,
+            source=source,
             parsed_source=source,
             prompt=factory_prompt,
             output=factory_output,
@@ -285,6 +340,64 @@ class ChainFactoryLink:
             link_type=link_type,
         )
 
+    def execute(self, data: dict) -> dict:
+        return super().execute(data)
+
+
+def chainfactorylink_or_tool(
+    name: str,
+    file_path: str | None = None,
+    file_content: str | None = None,
+    link_type: Literal["sequential", "parallel"] = "sequential",
+    convex: bool = False,
+    global_defs: FactoryDefinitions | None = None,
+    internal_engine_cls: Any | None = None,
+    internal_engine_config: Any | None = None,
+    is_tool: bool = False,
+    tools: dict[str, Callable[..., dict]] | None = None,
+    **kwargs,
+) -> ChainFactoryLink | ChainFactoryTool:
+    """
+    Parse the source .fctr file into a `ChainFactoryLink` object.
+    Extensions are not supported yet.
+
+    Args:
+        file_path (str): The path to the .fctr file.
+    Returns:
+        ChainFactoryLink: The parsed `ChainFactoryLink` object.
+    """
+    if file_content:
+        source = yaml.safe_load(file_content)
+    elif file_path:
+        source = yaml.safe_load(open(file_path, "r"))
+    else:
+        raise ValueError("Either file_path or file_object must be provided.")
+
+    if is_tool:
+        if not tools:
+            raise ValueError("tools must be provided when is_tool is True.")
+
+        fn = tools.get(name)
+        if not fn:
+            raise ValueError(f"tool {name} has not been registered in engine config.")
+
+        return ChainFactoryTool(
+            name=name,
+            link_type=link_type,
+            fn=fn,
+            source=source,
+        )
+
+    return ChainFactoryLink.from_file(
+        name=name,
+        source=source,
+        link_type=link_type,
+        convex=convex,
+        global_defs=global_defs,
+        internal_engine_cls=internal_engine_cls,
+        internal_engine_config=internal_engine_config,
+    )
+
 
 @dataclass
 class ChainFactory:
@@ -292,16 +405,19 @@ class ChainFactory:
     This type is the representation of multiple factories.
     """
 
-    links: list[ChainFactoryLink]
+    links: list[ChainFactoryTool | ChainFactoryLink]
     base_chain: Optional["ChainFactory"] = None
-    definitions: FactoryDefinitions = FactoryDefinitions()
+    definitions: FactoryDefinitions = field(default_factory=FactoryDefinitions)
+    config: ChainFactoryEngineConfig = field(default_factory=ChainFactoryEngineConfig)
     internal_engine_cls: Any = None
     internal_engine_config: Any = None
+    source: dict | None = None
 
     @classmethod
     def from_file(
         cls,
         file_path: str,
+        config: ChainFactoryEngineConfig | None = None,
         internal_engine_cls: Any | None = None,
         internal_engine_config: Any | None = None,
     ) -> "ChainFactory":
@@ -320,6 +436,7 @@ class ChainFactory:
 
         return cls.from_str(
             content,
+            config=config,
             internal_engine_cls=internal_engine_cls,
             internal_engine_config=internal_engine_config,
         )
@@ -329,8 +446,10 @@ class ChainFactory:
         cls,
         content: str,
         path: str | None = None,
+        config: ChainFactoryEngineConfig | None = None,
         internal_engine_cls: Any | None = None,
         internal_engine_config: Any | None = None,
+        for_internal_use: bool = False,
     ) -> "ChainFactory":
         """
         Parse the content of a .fctr file into a `ChainFactory` object.
@@ -348,13 +467,17 @@ class ChainFactory:
         parts = {}
         current_part = None
         base_chain_path = None
+
         if "@chainlink" not in content:
             return cls(
                 links=[
-                    ChainFactoryLink.from_file(
-                        name="chainlink-0",
+                    chainfactorylink_or_tool(
+                        name="chainlink"
+                        + ("-internal-" if for_internal_use else "-")
+                        + str(uuid.uuid4().hex),
                         file_content=content,
                         file_path=path,
+                        is_tool=False,
                     ),
                 ]
             )
@@ -368,6 +491,7 @@ class ChainFactory:
 
             chainlink_directive = line.strip().startswith("@chainlink")
             extends_directive = line.strip().startswith("@extends")
+            tool_directive = line.strip().startswith("@tool")
 
             if extends_directive:
                 if base_chain_path:
@@ -384,7 +508,17 @@ class ChainFactory:
                 base_chain_path = extends_parts[1]
                 continue
 
-            if not chainlink_directive and current_part:
+            is_directive = tool_directive or chainlink_directive or extends_directive
+            type_str = None
+            if is_directive:
+                if tool_directive:
+                    type_str = "@tool"
+                elif chainlink_directive:
+                    type_str = "@chainlink"
+                elif extends_directive:
+                    type_str = "@extends"
+
+            if not is_directive and current_part:
                 parts[current_part]["lines"].append(line)
                 continue
 
@@ -395,7 +529,7 @@ class ChainFactory:
 
             if len(tokens) > 3:
                 raise ValueError(
-                    f"Error on line {i}. Invalid @chainlink definition. Must be of the form `@chainlink <name> <link_type>`."
+                    f"Error on line {i}. Invalid {type_str} definition. Must be of the form `{type_str} <name> <link_type>`."
                 )
             elif len(tokens) == 3:
                 name = tokens[1]
@@ -403,14 +537,13 @@ class ChainFactory:
 
                 if link_type not in ["sequential", "parallel", "--", "||"]:
                     raise ValueError(
-                        f"Error on line {i}. Invalid @chainlink definition. Must be of the form `@chainlink [name] [link_type: 'sequential' | '--' | 'parallel' | '||']."
+                        f"Error on line {i}. Invalid {type_str} definition. Must be of the form `{type_str} [name] [link_type: 'sequential' | '--' | 'parallel' | '||']."
                     )
 
-                if name in parts:
+                if name in parts and not parts[name].get("is_tool"):
                     raise ValueError(
-                        f"Error on line {i}. Invalid @chainlink definition. Another chainlink with the same name exists."
+                        f"Error on line {i}. Invalid {type_str} definition. Another chainlink with the same name exists."
                     )
-
             elif len(tokens) == 2:
                 unknown_token = tokens[1]
                 if unknown_token in ["sequential", "parallel", "--", "||"]:
@@ -433,6 +566,7 @@ class ChainFactory:
             parts[name] = {
                 "beginning_line": i,
                 "link_type": link_type,
+                "is_tool": tool_directive,
                 "lines": [],
             }
 
@@ -445,26 +579,34 @@ class ChainFactory:
                     f"Error on line {part['beginning_line']}. Chainlink definition cannot be empty."
                 )
 
-            if (
+            convex = (
                 previous_link
                 and previous_link._link_type == "parallel"
                 and part["link_type"] == "sequential"
-            ):
-                convex = True
-            else:
-                convex = False
+            )
 
-            link = ChainFactoryLink.from_file(
+            link = chainfactorylink_or_tool(
                 name=name,
                 file_content="\n".join(part["lines"]).replace("\t", "  "),
                 link_type=part["link_type"],
-                convex=convex,
+                convex=bool(convex),
                 global_defs=global_defs,
                 internal_engine_cls=internal_engine_cls,
                 internal_engine_config=internal_engine_config,
+                is_tool=part.get("is_tool", False),
+                tools={} if not config else config.tools,
             )
 
-            if previous_link and previous_link._link_type == "parallel":
+            if isinstance(link, ChainFactoryTool):
+                previous_link = link
+                chainlinks.append(link)
+                continue
+
+            if (
+                previous_link
+                and previous_link._link_type == "parallel"
+                and not previous_link._is_tool
+            ):
                 assert link.prompt
                 assert link.prompt.input_variables
                 assert link.prompt.template

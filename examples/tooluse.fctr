@@ -1,0 +1,11 @@
+@chainlink generator
+purpose: generate haiku
+in:
+	topic: str
+out:
+	haiku: str % the complete haiku text. required.
+
+@tool important_fn
+in:
+	topic: str
+	haiku: str
