@@ -1,6 +1,6 @@
-@chainlink cancellation --
-purpose: to determine if the emeail is a cancellation request
+@chainlink cancel
+purpose: return true if a given input email explicitly contains a cancellation request
 in:
-	email: str
+	email_body: str
 out:
-		is_cancellation_request: bool
+  is_cancellation_request: bool
