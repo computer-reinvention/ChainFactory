@@ -12,8 +12,8 @@ ChainFactory is a powerful system for creating complex, multi-step LLM workflows
 - Hash based caching for prompts generated from purpose statements and masks for convex transitions.
 
 ## Basic Concepts
-### Chain Links
-A chain link is a single unit in your workflow, defined using the `@chainlink` directive:
+### ChainLinks
+A chain-link is a single unit in your workflow, defined using the `@chainlink` directive:
 
 ```yaml
 @chainlink my-first-chain
@@ -27,14 +27,14 @@ You can specify how chain links execute:
 - Sequential (`--` or `sequential`): Links run one after another
 - Parallel (`||` or `parallel`): Links run simultaneously for multiple inputs
 
-Example - a 3 step chain:
+*Example:* A 3 step chain.
 ```yaml
 @chainlink generator --     # runs once
-@chainlink reviewer ||      # runs multiple times in parallel, number of runs is determined by output of the previous link
+@chainlink reviewer ||      # runs multiple times in parallel, number of runs is determined by output of the previous link which must be or have an iterable
 @chainlink summarizer --    # runs once to summarize the output of the previous parallel link
 ```
 
-## Cool Features
+## Features
 
 ### 1. Purpose-Driven Prompts
 Instead of writing prompts manually, let ChainFactory generate them:
@@ -91,24 +91,15 @@ out:
 purpose: critically analyze each haiku
 ```
 
-### 2. Weird Snack Combo Generator + Parallel Filter + Email Writera
+### 2. Checking if an Email Contains a Cancellation Request
 
 ```yaml
-@chainlink generate --
-purpose: Generate {num} combinations of snacks that go well with each other. Generate {num} such combinations.
-def:
-  SnackCombo:
-    items: list[str]
-    comment: str?
-out:
-  combos: list[Combo]
-
-@chainlink comment || # runs len(combos) instances of the chainlink
-purpose: Given a snack combination, sarcastically comment on why it's the weirdest snack combination ever.
+@chainlink cancellation_request
+purpose: return true if a given input email explicitly contains an event cancellation request
 in:
-  combos.element.items: str
+	email_body: str
 out:
-  res: list[SnackCombo]
+  is_cancellation_request: bool
 ```
 
 ## Best Practices
@@ -127,8 +118,8 @@ def:
 
 3. **Chain Structure - General Workflows**
 - Start with sequential chains for initial processing.
-- Use parallel chains for whenever the order or execution is unimportant.
-- End with sequential chains for summarization and getting a final text / object output.
+- Use parallel chains for whenever the order or execution is unimportant and iterables are involved.
+- End with sequential chains or a final tool call for summarization and getting a final text / object output.
 
 4. **Documentation**
 Add field descriptions using `%`. This is not only for readability, but also for the LLM to understand the context of the field. It is basically a part of the prompting process.
@@ -153,11 +144,36 @@ mask:
 A template is automatically generated based on the supplied variables to the mask. This template is used to format the data before passing it to the final chainlink.
 
 ### Caching
-The system automatically caches generated prompts, and masks. Improving performance for repeated runs of the same chains.
+The system automatically caches generated prompts, and masksi by hashing them and storing them under `.chainfactory/cache`. So even though the prompt template is generated dynamically in purpose based prompting, it only needs to be done whenever the purpose or the inputs change.
+
+*Side Note*: It is recommended to commit the `.chainfactory/cache` folder to your codebase's version control system.
+
+### Tools
+Tools are callables that can be used in a similar way to a chain-link. Any function to be used for this purpose can have an arbitrary number of arguments but should always return a dict.
+
+```yaml
+@chainlink generator
+purpose: generate haiku
+in:
+	topic: str
+out:
+	haiku: str % the complete haiku text. required.
+
+@tool websearch
+in:
+	topic: str # becomes a kwarg to the registered tool
+
+```
+
+*Note:* If a tool  called `websearch` is not registered with the engine config, initialization will fail.
+
+If defined in a parallel chainlink, the tool will run once corresponding to each instance of the chainlink. If the code causes some side effects and repeating the action is not safe, please only use `@tool` directive in a sequential context. Most of the places where tool use makes sense are things such as fetching data from an API or a database.
+
+You can register tools using the `register_tool` and `register_tools` method of the `EngineConfig` class.
 
 ## Configuring the ChainFactory Engine
 
-ChainFactory Engine can be configured using the `ChainFactoryEngineConfig` class. You can control aspects such as the language model used, caching behavior, concurrency, and execution traces. Below are the configuration options available:
+The `ChainFactoryEngine` or simply the `Engine` can be configured using the `ChainFactoryEngineConfig` (`EngineConfig`) class. You can control aspects such as the language model used, caching behavior, concurrency, and execution traces using the config class. Below are the configuration options available:
 
 - `model`: Specifies the model to use (default is `"gpt-4o"`).
 - `temperature`: Sets the temperature for the model, which controls the randomness of the outputs (default is `0`).
@@ -169,13 +185,14 @@ ChainFactory Engine can be configured using the `ChainFactoryEngineConfig` class
 - `print_trace`: If `True`, enables printing of execution traces (default is `False`).
 - `print_trace_for_single_chain`: Similar to `print_trace` but for single chain execution (default is `False`).
 - `pause_between_executions`: If `True`, prompts for confirmation before executing the next chain (default is `True`).
+- `tools`: A dictionary of tools that can be used from the .fctr files.
 
-To use these configurations, you can pass them when initializing the ChainFactoryEngine:
 
 ```python
-from chainfactory.core.engine.chainfactory_engine import ChainFactoryEngine, ChainFactoryEngineConfig
+from chainfactory import Engine, EngineConfig
+from some_module import websearch
 
-config = ChainFactoryEngineConfig(
+config = EngineConfig(
     model="gpt-4o",
     temperature=0.7,
     cache=True,
@@ -185,11 +202,9 @@ config = ChainFactoryEngineConfig(
     print_trace=True,
     prompt_between_executions=True
 )
-
-engine = ChainFactoryEngine.from_file("examples/haiku.fctr", config)
+config.register_tool(websearch) # register a tool or multiple using the register_tools method
+engine = Engine.from_file("examples/haiku.fctr", config)
 ```
-
-This configuration allows you to fine-tune the behavior of the ChainFactory to suit your needs.
 
 
 ## Conclusion
@@ -198,7 +213,6 @@ ChainFactory makes it easy to create complex LLM workflows without writing code.
 Remember that this is just an overview - experiment with the examples to discover more possibilities!
 
 ## Getting Help
-- Check the examples folder for more patterns
-- Use the built-in validation to catch errors early
+- Check the examples folder for common patterns
 - Break complex chains into smaller, reusable pieces
-- Ping me directly on email: garkotipankaj@gmail.com
+- Ping me directly on email: garkotipankaj [at] gmail.com
