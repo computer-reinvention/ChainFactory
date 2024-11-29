@@ -1,25 +1,11 @@
 @chainlink generator
-prompt: "Write {num} haiku(s) about {topic}. Use the standard 5-7-5 syllable pattern."
-def:
-  Haiku:
-    haiku_text: str
-    haiku_explanation: str
-out:
-  topic: str % the original topic. required.
-  haikus: list[Haiku] % required number of haikus about the topic.
-
-@tool get test --
-url: http://localhost:8000
-in:
-	- topic
-	- haikus
-	
-@chainlink critic ||
-purpose: critically analyze each haiku
+purpose: generate haiku
 in:
 	topic: str
-	haikus.element.haiku_text: str
-	haikus.element.haiku_explanation: str
 out:
-	review: str % concise literary analysis of this haiku.
-	haiku: str % original haiku text. required.
+	haiku: str % the complete haiku text. required.
+
+@tool important_fn
+in:
+	topic: str
+	haiku: str

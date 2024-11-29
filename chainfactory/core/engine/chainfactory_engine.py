@@ -2,7 +2,6 @@ import time
 import traceback
 from pprint import pprint
 from typing import Any, Literal
-from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from langchain.prompts import ChatPromptTemplate
@@ -12,25 +11,12 @@ from langchain_ollama import ChatOllama
 from langchain_core.runnables import RunnableSerializable
 from colorama import Fore, Style
 
-from chainfactory.core.factory import ChainFactoryLink, ChainFactory
-
-
-@dataclass
-class ChainFactoryEngineConfig:
-    """
-    Configuration for the ChainFactoryEngine.
-    """
-
-    model: str = "gpt-4o"
-    temperature: float = 0
-    cache: bool = False
-    provider: Literal["openai", "anthropic", "ollama"] = "openai"
-    max_tokens: int = 1024
-    model_kwargs: dict = field(default_factory=dict)
-    max_parallel_chains: int = 10
-    print_trace: bool = False
-    print_trace_for_single_chain: bool = False
-    pause_between_executions: bool = True
+from chainfactory.core.factory import (
+    ChainFactoryLink,
+    ChainFactory,
+    ChainFactoryTool,
+)
+from .chainfactory_engine_config import ChainFactoryEngineConfig
 
 
 class ChainFactoryEngine:
@@ -106,8 +92,8 @@ class ChainFactoryEngine:
         """
         Execute a parallel chain.
         """
-        chain: RunnableSerializable = current["chain"]
-        link: ChainFactoryLink = current["link"]
+        chain: RunnableSerializable | None = current["chain"]
+        link: ChainFactoryLink | ChainFactoryTool = current["link"]
         previous_link: ChainFactoryLink = previous["link"]
         previous_output: dict = previous["output"]
         previous_link_type: Literal["sequential", "parallel"] = (
@@ -116,19 +102,22 @@ class ChainFactoryEngine:
 
         matching_vars = []
         matching_list_vars = []
+        link_is_tool = isinstance(link, ChainFactoryTool)
 
         if not previous_output:
             raise ValueError(f"Error: output from {previous['name']} is None.")
 
-        if not link.prompt:
-            raise ValueError(f"link.prompt cannot be None for chain {link._name}")
+        input_variables = []
+        if link_is_tool:
+            input_variables = link.input.input_variables
+        else:
+            assert link.prompt
+            input_variables = link.prompt.input_variables
 
-        if not link.prompt.input_variables:
-            raise ValueError(
-                f"unable to determine input_variables for chain: {link._name}"
-            )
+        if not input_variables:
+            input_variables = []
 
-        for var in link.prompt.input_variables:
+        for var in input_variables:
             if var in previous_output:
                 matching_vars.append(var)
 
@@ -214,10 +203,16 @@ class ChainFactoryEngine:
             futures = []
             results = []
             for input in current_inputs:
-                fn = chain.invoke
-                if link.is_tool:
-                    fn = link.tool.execute
-                future = executor.submit(fn, input)
+                if isinstance(link, ChainFactoryTool):
+                    fn = lambda x: link.execute(**x)
+                    future = executor.submit(fn, input)
+                else:
+                    if not chain:
+                        raise ValueError(
+                            f"Chain cannot be None at this stage. Please report this issue."
+                        )
+                    future = executor.submit(chain.invoke, input)
+
                 futures.append(future)
 
             for future in as_completed(futures):
@@ -230,9 +225,9 @@ class ChainFactoryEngine:
         """
         Execute a sequential chain.
         """
-        chain: RunnableSerializable = current["chain"]
-        link: ChainFactoryLink = current["link"]
-        previous_link: ChainFactoryLink = previous["link"]
+        chain: RunnableSerializable | None = current["chain"]
+        link: ChainFactoryLink | ChainFactoryTool = current["link"]
+        previous_link: ChainFactoryLink | ChainFactoryTool = previous["link"]
         previous_output: dict = previous["output"]
         previous_link_type: Literal["sequential", "parallel"]
 
@@ -243,32 +238,49 @@ class ChainFactoryEngine:
 
         match previous_link_type:
             case "sequential":
-                if link.tool:
-                    matching_vars = [
-                        k for k in link.tool.input_variables if k in previous_output
-                    ]
-                    input = {
-                        k: v for k, v in previous_output.items() if k in matching_vars
-                    }
-                    return link.tool.execute(input)
-                else:
-                    assert link.prompt
+                if isinstance(link, ChainFactoryTool):
                     input = {
                         k: v
                         for k, v in previous_output.items()
-                        if k in link.prompt.input_variables
+                        if k in link.input.input_variables
                     }
-                    if not input:
-                        raise ValueError(
-                            f"Piping failed. No matching input variables found for linking chains {previous['name']} -> {current['name']}."
-                        )
+                    return link.execute(**input)
 
-                    return chain.invoke(input)
+                assert link.prompt
+                input = {
+                    k: v
+                    for k, v in previous_output.items()
+                    if k in link.prompt.input_variables
+                }
+
+                if not input:
+                    raise ValueError(
+                        f"Piping failed. No matching input variables found for linking chains {previous['name']} -> {current['name']}."
+                    )
+
+                assert chain
+                return chain.invoke(input)
             case "parallel":
-                assert link.mask and not link.is_tool
                 assert previous_link._name in previous_output
+
                 previous_output = previous_output[previous_link._name]
                 assert isinstance(previous_output, list)
+
+                if isinstance(link, ChainFactoryTool):
+                    inputs = [
+                        {
+                            k: v
+                            for k, v in output.items()
+                            if k in link.input.input_variables
+                        }
+                        for output in previous_output
+                    ]
+
+                    results = [link.execute(**input) for input in inputs]
+                    return results
+
+                assert chain
+                assert link.mask
 
                 input = {
                     link._name: [
@@ -283,14 +295,6 @@ class ChainFactoryEngine:
                     ]
                 }
 
-                if not input[link._name]:
-                    raise ValueError(
-                        f"Piping failed. No matching variables found for linking chains {previous['name']} -> {current['name']}. Please note that this is a convex chain and hence the matching variables are determined by the mask."
-                    )
-
-                if link.is_tool:
-                    return link.tool.execute(input)
-
                 return chain.invoke(input)
             case _:
                 raise ValueError(
@@ -302,6 +306,7 @@ class ChainFactoryEngine:
         previous_chain_name: str | None,
         previous_output: Any,
         next_chain_name: str,
+        is_tool: bool = False,
     ) -> bool:
         if not self.config.pause_between_executions:
             return True
@@ -334,17 +339,15 @@ class ChainFactoryEngine:
                 pprint(previous_output)
 
             print(
-                Fore.GREEN
-                + f"Next Chainlink to be executed: {next_chain_name}"
-                + Style.RESET_ALL
+                Fore.GREEN + f"Next to be executed: {next_chain_name}" + " (tool) "
+                if is_tool
+                else " (chainlink) " + Style.RESET_ALL
             )
 
         while True:
             response = (
                 input(
-                    Fore.WHITE
-                    + "Do you want to proceed with the next chainlink? (Yes/No): "
-                    + Style.RESET_ALL
+                    Fore.WHITE + "Do you want to proceed? (Yes/No): " + Style.RESET_ALL
                 )
                 .strip()
                 .lower()
@@ -367,8 +370,8 @@ class ChainFactoryEngine:
         previous_link = None
 
         for name, data in self.chains.items():
-            chain: RunnableSerializable = data["chain"]
-            link: ChainFactoryLink = data["link"]
+            chain: RunnableSerializable | None = data["chain"]
+            link: ChainFactoryLink | ChainFactoryTool = data["link"]
 
             if not previous_output:
                 previous_output = initial_input
@@ -376,8 +379,16 @@ class ChainFactoryEngine:
             if previous_link and previous_link._link_type == "parallel":
                 assert isinstance(previous_output, list)
 
+                def try_convert_to_dict(item):
+                    try:
+                        return item.dict()
+                    except:
+                        return item
+
                 if not isinstance(previous_output[0], dict):
-                    previous_output = [item.dict() for item in previous_output]
+                    previous_output = [
+                        try_convert_to_dict(item) for item in previous_output
+                    ]
 
                 previous_output = {
                     previous_link._name: previous_output,
@@ -401,6 +412,7 @@ class ChainFactoryEngine:
                 previous_chain_name=previous_chain_name,
                 previous_output=previous_output,
                 next_chain_name=name,
+                is_tool=isinstance(link, ChainFactoryTool),
             )
 
             if not should_proceed:
@@ -422,13 +434,14 @@ class ChainFactoryEngine:
                 {
                     "name": name,
                     "type": link._link_type,
+                    "is_tool": isinstance(link, ChainFactoryTool),
                     "input": previous_output,
                     "output": output,
                     "execution_time": t2 - t1,
                 }
             )
 
-            if not isinstance(output, list):
+            if not isinstance(output, list) and not isinstance(output, dict):
                 output = output.dict()
 
             previous_output = output
@@ -440,9 +453,11 @@ class ChainFactoryEngine:
 
     def _create_chains(
         self,
-        chainlinks: list[ChainFactoryLink],
+        chainlinks: list[ChainFactoryTool | ChainFactoryLink],
         config: ChainFactoryEngineConfig,
-    ) -> dict[str, dict[str, RunnableSerializable | ChainFactoryLink]]:
+    ) -> dict[
+        str, dict[str, RunnableSerializable | ChainFactoryLink | ChainFactoryTool]
+    ]:
         """
         Create a chain from the factory.
         """
@@ -469,7 +484,7 @@ class ChainFactoryEngine:
                 case _:
                     raise ValueError(f"Invalid provider: {config.provider}")
 
-            if link.is_tool:
+            if isinstance(link, ChainFactoryTool):
                 runnables[link._name] = {
                     "chain": None,
                     "link": link,
@@ -505,6 +520,7 @@ class ChainFactoryEngine:
         """
         factory = ChainFactory.from_file(
             file_path,
+            config=config,
             internal_engine_cls=kwargs.get("internal_engine_cls", cls),
             internal_engine_config=kwargs.get("internal_engine_config", config),
         )
@@ -523,8 +539,10 @@ class ChainFactoryEngine:
         """
         factory = ChainFactory.from_str(
             content,
+            config=config,
             internal_engine_cls=kwargs.get("internal_engine_cls", cls),
             internal_engine_config=kwargs.get("internal_engine_config", config),
+            for_internal_use=kwargs.get("for_internal_use", False),
         )
 
         return cls(factory, config)

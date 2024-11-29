@@ -1,0 +1,6 @@
+@chainlink cancellation --
+purpose: to determine if the emeail is a cancellation request
+in:
+	email: str
+out:
+		is_cancellation_request: bool
