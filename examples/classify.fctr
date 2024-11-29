@@ -1,0 +1,33 @@
+# Classify And Act | Round II Motherfucker
+@chainlink classify
+purpose: classify the input text from the perspective of an executive assistant who manages an executive's calendaar
+in:
+	text: str
+	labels: list[str]
+def:
+  Classification:
+    label: str % most relevant label for input text
+		text: str % entirety of the input text, verbatim
+		snippet: str % snippet from input text that justifies the label
+		confidence: Literal["extreme", "high", "medium", "low", "none"] % confidence level in the label's accuracy
+out:
+	classification: Classification
+
+@tool display_classification
+in:
+	classification: Classification
+
+@tool confidence_filter
+in:
+	classification: Classification
+
+@tool take_action
+in:
+	classification: Classification
+out:
+	action: str
+
+@tool logdump
+in:
+	action: str
+	classification: Classification

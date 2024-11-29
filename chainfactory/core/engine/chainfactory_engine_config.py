@@ -20,12 +20,14 @@ class ChainFactoryEngineConfig:
     pause_between_executions: bool = True
     tools: dict[str, Callable[..., dict]] = field(default_factory=dict)
 
-    def register_tool(self, fn: Callable[..., dict]) -> None:
+    def register_tool(self, fn: Callable) -> Callable:
         """
         Register a function to be used as a tool. The function can have arbitrary arguments but should necessarily return a dictionary.
         """
 
         self.tools[fn.__name__] = fn
+
+        return fn
 
     def register_tools(self, fns: list[Callable[..., dict]]) -> None:
         """

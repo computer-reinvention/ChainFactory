@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Literal, Optional
 
 
 def create_class_from_dict(
@@ -20,6 +20,13 @@ def create_class_from_dict(
     Returns:
         type: The dynamically created class.
     """
+    local_types = {
+        "Any": Any,
+        "Literal": Literal,
+        "Optional": Optional,
+        "list": list,
+        "dict": dict,
+    }
     class_dict = {"__annotations__": {}}
 
     if not defined_types:
@@ -58,17 +65,17 @@ def create_class_from_dict(
             actual_type_str = attr_type[:-1]
             actual_type = defined_types.get(actual_type_str)
             if actual_type is None:
-                actual_type = Optional[eval(actual_type_str)]
+                actual_type = Optional[eval(actual_type_str, local_types)]
         elif attr_type.startswith("list[") and attr_type.endswith("]"):
             element_type_str = attr_type[5:-1]
             element_type = defined_types.get(element_type_str)
             if element_type is None:
-                element_type = eval(element_type_str)
+                element_type = eval(element_type_str, local_types)
             actual_type = list[element_type]
         else:
             actual_type = defined_types.get(attr_type)
             if actual_type is None:
-                actual_type = eval(attr_type)
+                actual_type = eval(attr_type, local_types)
 
         class_dict["__annotations__"][attr] = actual_type
 
