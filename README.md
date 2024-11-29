@@ -1,4 +1,4 @@
-# ChainFactory: Run Structured LLM Inference with Easy Parallelism (`chainfactory-py 0.0.16a`)
+# ChainFactory: Structured LLM Inference with Easy Parallelism & Tool Calling (`chainfactory-py 0.0.16a`)
 
 ## Introduction
 ChainFactory is a declarative system for creating complex, multi-step LLM workflows using a simple YAML-like syntax. It allows you to connect multiple prompts in a chain, with outputs from one step feeding into inputs of subsequent steps. The most important feature is the reduced reliance on exact wording of the prompts and easy parallel execution wherever iterables are involved.
@@ -24,8 +24,8 @@ out:
 ```
 ### Sequential vs Parallel Execution
 You can specify how chain links execute:
-- Sequential (`--` or `sequential`): Links run one after another
-- Parallel (`||` or `parallel`): Links run simultaneously for multiple inputs
+- Sequential (`--` or `sequential`): Links run one after another serially.
+- Parallel (`||` or `parallel`): Links run simultaneously for multiple inputs (requires an iterable output from the previous link).
 **Example**: A 3 step chain.
 
 ```yaml
@@ -114,6 +114,66 @@ out:
   is_cancellation_request: bool
 ```
 
+### 3. Classification and Action - Making Decisions and Acting on Them
+```yaml
+@chainlink classify
+purpose: to classify the input text into one of the provided labels
+in:
+	text: str
+	labels: list[str]
+def:
+  Classification:
+    label: str % Most relevant label for the input text.
+    text: str % The original input text, verbatim.
+    snippet: str % Snippet from input text that justifies the label.
+    confidence: Literal["extreme", "high", "medium", "low", "none"] % Your confidence level in the label's accuracy.
+out:
+	classification: Classification
+
+@tool confidence_filter --
+in:
+    classification: Classification
+
+@tool take_action --
+in:
+	classification: Classification
+out:
+	action: str
+    label: str
+
+@chainlink validate --
+prompt: Is (Action: {action}) in response to (Text: {text}) valid and reasonable?
+out:
+    is_valid: bool
+    reason: str
+```
+
+And here's the python counterpart for above `.fctr` file:
+```python
+from chainfactory import Engine, EngineConfig
+from some.module import TEXT, HANDLERS
+
+engine_config = EngineConfig()
+
+@engine_config.register_tool
+def confidence_filter(**kwargs): # gets called first
+    """
+    Raise an exception if the confidence level is low.
+    """
+    raise NotImplementedError
+
+@engine_config.register_tool  # brand new decorator
+def take_action(**kwargs):
+    """
+    Call a handler based on the classification by ChainFactory.
+    """
+    raise NotImplementedError
+
+if __name__ == "__main__":
+    classification_engine = Engine.from_file("examples/classify.fctr", config=engine_config)
+    classification_engine(text=TEXT, labels=list(HANDLERS.keys()))
+```
+
 ## Tips:
 1. **Use Purpose Statements**
 When possible, let the system generate prompts using clear one-liner purpose statements. Do this more often for tasks that do not require domain knowledge.
@@ -177,7 +237,7 @@ in:
 If defined in a parallel chainlink, the tool will run once corresponding to each instance of the chainlink. Make sure that your tool is stateless and does not have any side effects that could cause issues due to repeated concurrent executions.
 If the code causes some side effects and repeating the action is not safe, please only use `@tool` directive in a sequential context. Most of the places where tool use makes sense are things such as fetching data from an API or a database.
 
-Tools are registered using the `register_tools` method of the `EngineConfig` class. Loading a file with tools fails if the config already does not have a tool registered with the same name.
+Tools are registered using the `register_tools` method of the `ChainFactoryEngineConfig` class. The singular version of this, `register_tool`  can also be used as a decorator. **Warning**: loading a file with tools fails if the config already does not have a tool registered with the same name.
 
 ## Configuring the ChainFactory Engine
 The `ChainFactoryEngine` or simply the `Engine` can be configured using the `ChainFactoryEngineConfig` (`EngineConfig`) class. You can control aspects such as the language model used, caching behavior, concurrency, and execution traces using the config class. Below are the configuration options available:
