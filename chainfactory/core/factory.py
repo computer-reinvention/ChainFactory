@@ -21,7 +21,6 @@ from .components import (
     FactoryOutput,
     FactoryInput,
     FactoryMask,
-    FactoryTool,
 )
 
 
@@ -106,7 +105,6 @@ class ChainFactoryLink(BaseChainFactoryLink):
         output: Optional[FactoryOutput] = None,
         prompt: Optional[FactoryPrompt] = None,
         mask: Optional[FactoryMask] = None,
-        tool: Optional[FactoryTool] = None,
         link_type: Literal["sequential", "parallel"] = "sequential",
     ):
         self._name = name
@@ -120,7 +118,6 @@ class ChainFactoryLink(BaseChainFactoryLink):
         )
         self.output: Optional[FactoryOutput] = output  # section `out`
         self._link_type = link_type
-        self.tool = tool
 
     @classmethod
     def from_file(

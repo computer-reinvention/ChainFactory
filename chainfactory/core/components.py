@@ -1,59 +1,9 @@
 import re
-from dataclasses import dataclass
 from typing import Any, Literal
 
-import requests
 from pydantic import BaseModel, Field
 
 from .parsing.class_from_dict import create_class_from_dict
-
-
-@dataclass
-class FactoryTool:
-    """
-    This type is the representation of the `@tool` directive chainlink.
-    """
-
-    name: str
-    url: str
-    method: Literal["get", "post"] = "get"
-    headers: dict[str, str] = Field(default_factory=dict)
-    params: dict[str, Any] = Field(default_factory=dict)
-    data: dict[str, Any] = Field(default_factory=dict)
-    input_variables: list[str] = Field(default_factory=list)
-
-    def execute(self, data):
-        """
-        Execute the tool.
-        """
-        match self.method.lower():
-            case "get":
-                if not self.params:
-                    self.params = {}
-                self.params.update(data)
-                response = requests.get(
-                    self.url,
-                    headers=self.headers,
-                    params=self.params,
-                )
-            case "post":
-                if not self.data:
-                    self.data = {}
-                self.data.update(data)
-                response = requests.post(
-                    self.url,
-                    headers=self.headers,
-                    data=self.data,
-                )
-            case _:
-                raise ValueError(f"Invalid method: {self.method}")
-
-        if response.status_code != 200:
-            raise ValueError(
-                f"Tool {self.name} failed with status code {response.status_code}"
-            )
-
-        return response.json()
 
 
 class FactoryMask:
