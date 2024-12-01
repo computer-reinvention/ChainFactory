@@ -1,21 +1,22 @@
-# ChainFactory: Structured LLM Inference with Easy Parallelism & Tool Calling (`chainfactory-py 0.0.16a`)
+# ChainFactory: Structured LLM Inference with Easy Parallelism & Tool Calling (`chainfactory-py 0.0.16b`)
 
 ## Introduction
 ChainFactory is a declarative system for creating complex, multi-step LLM workflows using a simple YAML-like syntax. It allows you to connect multiple prompts in a chain, with outputs from one step feeding into inputs of subsequent steps. The most important feature is the reduced reliance on exact wording of the prompts and easy parallel execution wherever iterables are involved.
 
 ## Key Features
 - Sequential and parallel chain execution
-- Support for Split-Map-Reduce workflows.
-- Automatic prompt generation from purpose statements.
+- Ideal for Split-Map-Reduce workflows.
+- Automatic prompt generation from concise purpose statements.
 - Type-safe outputs with Pydantic models.
 - Chain inheritance and reusability.
 - Smart input/output mapping between chain links.
 - Hash based caching for intermediate prompts and masks.
+- Tool calling for fetching data and performing actions.
 
 ## Basic Concepts
 
 ### ChainLinks
-A chain-link is a single unit in your workflow, defined using the `@chainlink` directive:
+A chain-link is a single unit in your workflow / chain, defined using the `@chainlink` directive:
 ```yaml
 @chainlink my-first-chain
 prompt: Write a story about {topic}
@@ -23,7 +24,7 @@ out:
     story: str
 ```
 ### Sequential vs Parallel Execution
-You can specify how chain links execute:
+You can specify how chainlinks execute:
 - Sequential (`--` or `sequential`): Links run one after another serially.
 - Parallel (`||` or `parallel`): Links run simultaneously for multiple inputs (requires an iterable output from the previous link).
 **Example**: A 3 step chain.
@@ -232,9 +233,14 @@ out:
 @tool websearch 
 in:
 	topic: str # becomes a kwarg to the registered tool.
+
+# the most minimal tool definition is a single line
+@tool another_tool 
 ```
-*Note:* If a tool called `websearch` is not registered with the engine config, initialization of the engine will fail.
+*Note:* If the tools are not registered with the engine config, initialization of the engine will fail.
+
 If defined in a parallel chainlink, the tool will run once corresponding to each instance of the chainlink. Make sure that your tool is stateless and does not have any side effects that could cause issues due to repeated concurrent executions.
+
 If the code causes some side effects and repeating the action is not safe, please only use `@tool` directive in a sequential context. Most of the places where tool use makes sense are things such as fetching data from an API or a database.
 
 Tools are registered using the `register_tools` method of the `ChainFactoryEngineConfig` class. The singular version of this, `register_tool`  can also be used as a decorator. **Warning**: loading a file with tools fails if the config already does not have a tool registered with the same name.
@@ -272,6 +278,10 @@ config = EngineConfig(
 )
 
 config.register_tools([websearch]) # register a tool or multiple using the register_tools method
+
+@config.register_tool # works as a decorator
+def another_tool(**kwargs):
+    return kwargs
 
 engine = Engine.from_file("examples/haiku.fctr", config)
 ```
