@@ -72,7 +72,7 @@ class ChainFactoryTool(BaseChainFactoryLink):
         input = source.get("in", {})
         self.input = FactoryInput(attributes=input)
 
-    def execute(self, *args, **kwargs) -> dict:
+    def execute(self, **kwargs) -> dict:
         if not self.fn:
             raise ValueError("ChainFactoryTool.fn is None. Cannot execute.")
 
@@ -81,7 +81,7 @@ class ChainFactoryTool(BaseChainFactoryLink):
         else:
             input = kwargs
 
-        return self.fn(*args, **input)
+        return self.fn(**input)
 
     @classmethod
     def from_file(cls):
@@ -239,14 +239,17 @@ class ChainFactoryLink(BaseChainFactoryLink):
                 "prompt / prompt.template or purpose / prompt.purpose must be provided."
             )
 
-        factory_defs = FactoryDefinitions(definitions=defs)
-
+        factory_defs = None if not defs else FactoryDefinitions(definitions=defs)
         if factory_defs and global_defs:
             factory_defs.extend(global_defs)
 
-        factory_output = FactoryOutput(
-            attributes=output or {},
-            definitions=factory_defs.defined_types,
+        factory_output = (
+            None
+            if not output
+            else FactoryOutput(
+                attributes=output,
+                definitions=(None if not factory_defs else factory_defs.defined_types),
+            )
         )
 
         if isinstance(mask, str):
@@ -363,15 +366,11 @@ def chainfactorylink_or_tool(
     Returns:
         ChainFactoryLink: The parsed `ChainFactoryLink` object.
     """
-    source = {}
     if file_content:
         source = yaml.safe_load(file_content)
     elif file_path:
         source = yaml.safe_load(open(file_path, "r"))
     else:
-        pass
-
-    if not source and not is_tool:
         raise ValueError("Either file_path or file_object must be provided.")
 
     if is_tool:
@@ -575,9 +574,9 @@ class ChainFactory:
         previous_link = None
         global_defs = FactoryDefinitions()
         for name, part in parts.items():
-            if not part["lines"] and not part.get("is_tool"):
+            if not part["lines"]:
                 raise ValueError(
-                    f"Error on line {part['beginning_line']}. Chainlink definition cannot be empty. Empty direcives are only allowed for tools."
+                    f"Error on line {part['beginning_line']}. Chainlink definition cannot be empty."
                 )
 
             convex = (
