@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "chainfactory-py"
-version = "0.0.16a"
-description = "Structured LLM Inference with Easy Parallelism"
+version = "0.0.16b"
+description = "Structured LLM Inference with Easy Parallelism and Tool Calling"
 authors = ["Pankaj Garkoti <garkotipankaj@gmail.com>"]
 readme = "README.md"
 license = "MIT"
