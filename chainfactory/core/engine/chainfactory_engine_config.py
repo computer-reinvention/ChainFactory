@@ -9,7 +9,7 @@ class ChainFactoryEngineConfig:
     """
 
     model: str = "gpt-4o"
-    temperature: float = 0
+    temperature: float = 0.5
     cache: bool = False
     provider: Literal["openai", "anthropic", "ollama"] = "openai"
     max_tokens: int = 1024

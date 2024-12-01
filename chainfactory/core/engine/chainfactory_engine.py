@@ -9,7 +9,7 @@ from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain_ollama import ChatOllama
 from langchain_core.runnables import RunnableSerializable
-from colorama import Fore, Style
+from colorama import Back, Fore, Style
 
 from chainfactory.core.factory import (
     ChainFactoryLink,
@@ -28,26 +28,32 @@ class ChainFactoryEngine:
         self.factory = factory
         self.config = config
         self.chains = self._create_chains(factory.links, config)
+        self.execution_trace = {}
+        self.execution_trace_list = []
 
-    def _print_trace(self, trace: list[dict]):
+    @staticmethod
+    def _print_trace(trace: list[dict[str, dict]]):
+        """
+        Print the execution trace.
+        """
         print(Fore.YELLOW + "Execution Trace:" + Style.RESET_ALL)
         for res in trace:
-            print(Fore.YELLOW + "=" * 80 + Style.RESET_ALL)
             print(
-                Fore.CYAN
+                Back.WHITE
+                + Fore.BLACK
                 + f"{res['name']}: {res['execution_time']} seconds"
+                + Fore.RESET
                 + Style.RESET_ALL
             )
-            print(Fore.WHITE + "Input:" + Style.RESET_ALL)
+            print(Fore.WHITE + "Input:" + Style.BRIGHT)
             pprint(res["input"])
-            print(Fore.WHITE + "Output:" + Style.RESET_ALL)
+            print(Fore.WHITE + "Output:" + Style.BRIGHT)
             pprint(res["output"])
-        if len(trace) > 0:
-            print(Fore.YELLOW + "=" * 80 + Style.RESET_ALL)
+            print("" + Style.RESET_ALL)
 
     def __call__(self, *args, **kwargs) -> Any:
         """
-        Call the chain with the given arguments.
+        Call the chainlinks 1 by 1 starting from the first chainlink and arguments.
         """
         chain_input = None
         if len(args) > 1:
@@ -63,7 +69,7 @@ class ChainFactoryEngine:
                 )
             chain_input = kwargs
 
-        trace = []
+        trace = {}
 
         try:
             trace = self._execute_chains(initial_input=chain_input)
@@ -82,10 +88,7 @@ class ChainFactoryEngine:
             raise ValueError(
                 "ChainFactoryEngine.__call__() failed. Trace contains zero results."
             )
-        elif kwargs.get("return_trace", False):
-            return trace
 
-        # we return the output of the last run
         return trace[-1]["output"]
 
     def _execute_parallel_chain(self, previous: dict, current: dict) -> list:
@@ -94,11 +97,7 @@ class ChainFactoryEngine:
         """
         chain: RunnableSerializable | None = current["chain"]
         link: ChainFactoryLink | ChainFactoryTool = current["link"]
-        previous_link: ChainFactoryLink = previous["link"]
         previous_output: dict = previous["output"]
-        previous_link_type: Literal["sequential", "parallel"] = (
-            "sequential" if not previous_link else previous_link._link_type
-        )
 
         matching_vars = []
         matching_list_vars = []
@@ -221,6 +220,48 @@ class ChainFactoryEngine:
 
             return results
 
+    @staticmethod
+    def _get_nested_value(d: dict, keys: list[str]):
+        """
+        Recursively fetches value from a nested dictionary using a list of keys.
+        """
+        if not keys or not isinstance(d, dict):
+            return None
+        if len(keys) == 1:
+            return d.get(keys[0], None)
+        return ChainFactoryEngine._get_nested_value(d.get(keys[0], {}), keys[1:])
+
+    def _get_next_step_input(self, input_variables: list[str], previous_output: dict):
+        """
+        Get the input for the next step.
+        """
+        input = {}
+        keys = []
+        for var in input_variables:
+            if var in previous_output:
+                input[var] = previous_output[var]
+                continue
+
+            for sep in [".", "$"]:
+                if sep not in var:
+                    continue
+                keys = var.split(sep)
+
+            if not keys:
+                continue
+
+            if keys[0] in self.execution_trace.keys():
+                prev = self.execution_trace[keys[0]]
+            else:
+                prev = previous_output
+
+            input[var] = self._get_nested_value(prev, keys[1:])
+
+        if not input:
+            input = previous_output
+
+        return input
+
     def _execute_sequential_chain(self, previous: dict, current: dict):
         """
         Execute a sequential chain.
@@ -238,46 +279,37 @@ class ChainFactoryEngine:
 
         match previous_link_type:
             case "sequential":
+                input = {}
+                input_variables = []
+                executor = None
+
                 if isinstance(link, ChainFactoryTool):
-                    input = {
-                        k: v
-                        for k, v in previous_output.items()
-                        if k in link.input.input_variables
-                    }
-                    return link.execute(**input)
+                    input_variables = link.input.input_variables or []
+                    executor = lambda x: link.execute(**x)
+                elif isinstance(link, ChainFactoryLink):
+                    assert chain
+                    assert link.prompt
+                    input_variables = link.prompt.input_variables or []
+                    executor = chain.invoke
+                else:
+                    raise ValueError("Invalid link type.")
 
-                assert link.prompt
-                input = {
-                    k: v
-                    for k, v in previous_output.items()
-                    if k in link.prompt.input_variables
-                }
+                input = self._get_next_step_input(input_variables, previous_output)
 
-                if not input:
-                    raise ValueError(
-                        f"Piping failed. No matching input variables found for linking chains {previous['name']} -> {current['name']}."
-                    )
-
-                assert chain
-                return chain.invoke(input)
+                return executor(input)
             case "parallel":
                 assert previous_link._name in previous_output
-
-                previous_output = previous_output[previous_link._name]
+                previous_output = self.execution_trace[previous_link._name]
                 assert isinstance(previous_output, list)
 
                 if isinstance(link, ChainFactoryTool):
-                    inputs = [
-                        {
-                            k: v
-                            for k, v in output.items()
-                            if k in link.input.input_variables
-                        }
-                        for output in previous_output
+                    input_variables = link.input.input_variables or []
+                    input = [
+                        self._get_next_step_input(input_variables, item)
+                        for item in previous_output
                     ]
 
-                    results = [link.execute(**input) for input in inputs]
-                    return results
+                    return link.execute(*input)
 
                 assert chain
                 assert link.mask
@@ -303,75 +335,61 @@ class ChainFactoryEngine:
 
     def proceed_yes_no(
         self,
-        previous_chain_name: str | None,
-        previous_output: Any,
         next_chain_name: str,
-        is_tool: bool = False,
+        is_tool: bool | None = False,
     ) -> bool:
         if not self.config.pause_between_executions:
             return True
 
-        if not previous_chain_name:
+        if next_chain_name:
             print(
                 Fore.GREEN
-                + f"Starting execution with the first chainlink: {next_chain_name}"
+                + f"\nNext to be executed: {next_chain_name}"
+                + (" (tool) " if is_tool else " (chainlink) ")
                 + Style.RESET_ALL
-            )
-        else:
-            if previous_output is None:
-                print(
-                    Fore.YELLOW
-                    + f"\nOutput from '{previous_chain_name}' is None."
-                    + Style.RESET_ALL
-                )
-            elif not previous_output:
-                print(
-                    Fore.YELLOW
-                    + f"\nOutput from '{previous_chain_name}' is empty."
-                    + Style.RESET_ALL
-                )
-            else:
-                print(
-                    Fore.CYAN
-                    + f"\nOutput from '{previous_chain_name}':"
-                    + Style.RESET_ALL
-                )
-                pprint(previous_output)
-
-            print(
-                Fore.GREEN + f"Next to be executed: {next_chain_name}" + " (tool) "
-                if is_tool
-                else " (chainlink) " + Style.RESET_ALL
             )
 
         while True:
             response = (
-                input(
-                    Fore.WHITE + "Do you want to proceed? (Yes/No): " + Style.RESET_ALL
-                )
+                input(Fore.WHITE + "Proceed? (Yes/No): " + Style.RESET_ALL)
                 .strip()
                 .lower()
             )
+
             if response in ["yes", "y", ""]:
+                print(
+                    Fore.GREEN
+                    + f"Executing chainlink: {next_chain_name}"
+                    + Style.RESET_ALL
+                )
                 return True
             elif response in ["no", "n"]:
+                print(Fore.RED + f"Terminating execution." + Style.RESET_ALL)
                 return False
             else:
-                continue
+                continue  # ask again
 
-    def _execute_chains(self, initial_input: dict) -> list[dict]:
+    def _execute_chains(self, initial_input: dict) -> list[dict[str, Any]]:
         """
         Execute the chains, while piping the outputs to successive chains.
         """
-        execution_trace = []
         previous_output = None
         previous_chain_name = None
         previous_chain = None
         previous_link = None
 
+        should_proceed = True
         for name, data in self.chains.items():
             chain: RunnableSerializable | None = data["chain"]
             link: ChainFactoryLink | ChainFactoryTool = data["link"]
+
+            should_proceed = self.proceed_yes_no(
+                next_chain_name=name,
+                is_tool=isinstance(link, ChainFactoryTool),
+            )
+
+            if not should_proceed:
+                break
 
             if not previous_output:
                 previous_output = initial_input
@@ -408,16 +426,6 @@ class ChainFactoryEngine:
                 "chain": chain,
             }
 
-            should_proceed = self.proceed_yes_no(
-                previous_chain_name=previous_chain_name,
-                previous_output=previous_output,
-                next_chain_name=name,
-                is_tool=isinstance(link, ChainFactoryTool),
-            )
-
-            if not should_proceed:
-                break
-
             t1 = time.time()
             match link._link_type:
                 case "sequential":
@@ -429,14 +437,25 @@ class ChainFactoryEngine:
             t2 = time.time()
 
             assert output
-
-            execution_trace.append(
+            self.execution_trace[name] = {
+                "name": name,
+                "type": link._link_type,
+                "is_tool": isinstance(link, ChainFactoryTool),
+                "input": previous_output,
+                "in": previous_output,
+                "output": output,
+                "out": output,
+                "execution_time": t2 - t1,
+            }
+            self.execution_trace_list.append(
                 {
                     "name": name,
                     "type": link._link_type,
                     "is_tool": isinstance(link, ChainFactoryTool),
                     "input": previous_output,
+                    "in": previous_output,
                     "output": output,
+                    "out": output,
                     "execution_time": t2 - t1,
                 }
             )
@@ -444,12 +463,22 @@ class ChainFactoryEngine:
             if not isinstance(output, list) and not isinstance(output, dict):
                 output = output.dict()
 
+            if output and (
+                self.config.print_trace
+                or self.config.print_trace_for_single_chain
+                or self.config.pause_between_executions
+            ):
+                print(Fore.CYAN + f"\nOutput from '{name}':" + Style.RESET_ALL)
+                print("=" * 100)
+                pprint(output)
+                print("=" * 100)
+
             previous_output = output
             previous_chain_name = name
             previous_chain = chain
             previous_link = link
 
-        return execution_trace
+        return self.execution_trace_list
 
     def _create_chains(
         self,

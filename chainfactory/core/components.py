@@ -116,9 +116,13 @@ class FactoryInput:
 
     attributes: dict
 
-    def __init__(self, attributes: dict):
-        self.attributes = attributes
-        self.input_variables = list(self.attributes.keys())
+    def __init__(self, attributes: dict | list[str]):
+        if isinstance(attributes, list):
+            self.attributes = {k: Any for k in attributes}
+            self.input_variables = attributes
+        else:
+            self.attributes = attributes
+            self.input_variables = list(self.attributes.keys())
 
 
 class FactoryPrompt:
