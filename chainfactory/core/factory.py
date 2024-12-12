@@ -13,6 +13,7 @@ import importlib.resources as pkg_resources
 from abc import abstractmethod
 
 from chainfactory.core.engine.chainfactory_engine_config import ChainFactoryEngineConfig
+from chainfactory.core.tools import ToolContext
 from chainfactory.core.utils import load_cache_file, save_cache_file
 
 from .components import (
@@ -61,7 +62,7 @@ class ChainFactoryTool(BaseChainFactoryLink):
         name: str,
         source: dict,
         link_type: Literal["sequential", "parallel"] = "sequential",
-        fn: Callable[..., dict] | None = None,
+        fn: Callable[[ToolContext], dict | ToolContext] | None = None,
     ):
         super().__init__(
             name=name,
@@ -72,7 +73,7 @@ class ChainFactoryTool(BaseChainFactoryLink):
         input = source.get("in", {})
         self.input = FactoryInput(attributes=input)
 
-    def execute(self, *args, **kwargs) -> dict:
+    def execute(self, **kwargs) -> dict:
         if not self.fn:
             raise ValueError("ChainFactoryTool.fn is None. Cannot execute.")
 
@@ -81,7 +82,25 @@ class ChainFactoryTool(BaseChainFactoryLink):
         else:
             input = kwargs
 
-        return self.fn(*args, **input)
+        # Call the function and get result
+        ctx = ToolContext(input)
+        result = self.fn(ctx)
+
+        if isinstance(result, dict):
+            result = {**ctx.get_output(), **result}
+        elif isinstance(result, ToolContext) or result is None:
+            result = result.get_output()
+        elif result is None:
+            result = ctx.get_output()
+
+        # Ensure result is a dictionary at this point
+        if not isinstance(result, dict):
+            raise ValueError(
+                f"Tool {self.fn.__name__} must return a dictionary or ToolContext, got {type(result)}"
+            )
+
+        # Merge with original kwargs, giving precedence to tool's return values
+        return {**kwargs, **result}
 
     @classmethod
     def from_file(cls):
@@ -393,7 +412,7 @@ def chainfactorylink_or_tool(
         name=name,
         source=source,
         link_type=link_type,
-        convex=convex,
+        convex=bool(convex),
         global_defs=global_defs,
         internal_engine_cls=internal_engine_cls,
         internal_engine_config=internal_engine_config,

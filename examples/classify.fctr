@@ -14,20 +14,6 @@ out:
 	classification: Classification
 
 @tool display_classification
-in:
-	classification: Classification
-
 @tool confidence_filter
-in:
-	classification: Classification
-
 @tool take_action
-in:
-	classification: Classification
-out:
-	action: str
-
 @tool logdump
-in:
-	action: str
-	classification: Classification

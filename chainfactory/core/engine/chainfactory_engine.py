@@ -304,12 +304,14 @@ class ChainFactoryEngine:
 
                 if isinstance(link, ChainFactoryTool):
                     input_variables = link.input.input_variables or []
-                    input = [
-                        self._get_next_step_input(input_variables, item)
-                        for item in previous_output
-                    ]
+                    input = {
+                        previous_link._name: [
+                            self._get_next_step_input(input_variables, item)
+                            for item in previous_output
+                        ]
+                    }
 
-                    return link.execute(*input)
+                    return link.execute(**input)
 
                 assert chain
                 assert link.mask
