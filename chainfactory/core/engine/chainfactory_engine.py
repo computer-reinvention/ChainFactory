@@ -1,5 +1,6 @@
 import time
 import traceback
+import dataclasses
 from pprint import pprint
 from typing import Any, Literal
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -231,15 +232,23 @@ class ChainFactoryEngine:
             return d.get(keys[0], None)
         return ChainFactoryEngine._get_nested_value(d.get(keys[0], {}), keys[1:])
 
-    def _get_next_step_input(self, input_variables: list[str], previous_output: dict):
+    def _get_next_step_input(
+        self,
+        input_variables: list[str],
+        previous_output: dict,
+        aliases: dict[str, str] | None = None,
+    ):
         """
         Get the input for the next step.
         """
         input = {}
         keys = []
+        if not aliases:
+            aliases = {}
         for var in input_variables:
+            alias = aliases.get(var)
             if var in previous_output:
-                input[var] = previous_output[var]
+                input[alias or var] = previous_output[var]
                 continue
 
             for sep in [".", "$"]:
@@ -250,12 +259,13 @@ class ChainFactoryEngine:
             if not keys:
                 continue
 
+            breakpoint()
             if keys[0] in self.execution_trace.keys():
                 prev = self.execution_trace[keys[0]]
+                input[alias or var] = self._get_nested_value(prev, keys[1:])
             else:
                 prev = previous_output
-
-            input[var] = self._get_nested_value(prev, keys[1:])
+                input[alias or var] = self._get_nested_value(prev, keys)
 
         if not input:
             input = previous_output
@@ -285,16 +295,20 @@ class ChainFactoryEngine:
 
                 if isinstance(link, ChainFactoryTool):
                     input_variables = link.input.input_variables or []
+                    aliases = link.input.aliases
                     executor = lambda x: link.execute(**x)
                 elif isinstance(link, ChainFactoryLink):
                     assert chain
                     assert link.prompt
                     input_variables = link.prompt.input_variables or []
+                    aliases = {}
                     executor = chain.invoke
                 else:
                     raise ValueError("Invalid link type.")
 
-                input = self._get_next_step_input(input_variables, previous_output)
+                input = self._get_next_step_input(
+                    input_variables, previous_output, aliases
+                )
 
                 return executor(input)
             case "parallel":
@@ -437,6 +451,13 @@ class ChainFactoryEngine:
             t2 = time.time()
 
             assert output
+            output_dict = None
+
+            if not isinstance(output, dict):
+                output_dict = output.dict()
+            else:
+                output_dict = output
+
             self.execution_trace[name] = {
                 "name": name,
                 "type": link._link_type,
@@ -444,7 +465,7 @@ class ChainFactoryEngine:
                 "input": previous_output,
                 "in": previous_output,
                 "output": output,
-                "out": output,
+                "out": output_dict,
                 "execution_time": t2 - t1,
             }
             self.execution_trace_list.append(
@@ -455,22 +476,19 @@ class ChainFactoryEngine:
                     "input": previous_output,
                     "in": previous_output,
                     "output": output,
-                    "out": output,
+                    "out": output_dict,
                     "execution_time": t2 - t1,
                 }
             )
 
-            if not isinstance(output, list) and not isinstance(output, dict):
-                output = output.dict()
-
-            if output and (
+            if output_dict and (
                 self.config.print_trace
                 or self.config.print_trace_for_single_chain
                 or self.config.pause_between_executions
             ):
                 print(Fore.CYAN + f"\nOutput from '{name}':" + Style.RESET_ALL)
                 print("=" * 100)
-                pprint(output)
+                pprint(output_dict)
                 print("=" * 100)
 
             previous_output = output
