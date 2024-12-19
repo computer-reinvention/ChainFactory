@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "chainfactory-py"
-version = "0.0.16b"
+version = "0.0.16"
 description = "Structured LLM Inference with Easy Parallelism and Tool Calling"
 authors = ["Pankaj Garkoti <garkotipankaj@gmail.com>"]
 readme = "README.md"
 license = "MIT"
 packages = [{include = "chainfactory"}]
-include = ["chainfactory/chains/generate_prompt_template.fctr", "chainfactory/chains/generate_mask_template.py"]
+include = ["chainfactory/chains/generate_prompt_template.fctr", "chainfactory/chains/generate_mask_template.fctr"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
