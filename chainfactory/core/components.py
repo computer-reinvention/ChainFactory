@@ -115,6 +115,7 @@ class FactoryInput:
     """
 
     attributes: dict
+    aliases: dict[str, str] = {}
 
     def __init__(self, attributes: dict | list[str]):
         if isinstance(attributes, list):
@@ -123,6 +124,18 @@ class FactoryInput:
         else:
             self.attributes = attributes
             self.input_variables = list(self.attributes.keys())
+
+        dot_access_notation = lambda x: x.split(" as ")[0].strip()
+        shorthand = lambda x: x.split(" as ")[1].strip()
+        cleaned_input_variables = []
+        for var in self.input_variables:
+            if " as " in var:
+                self.aliases[dot_access_notation(var)] = shorthand(var)
+                cleaned_input_variables.append(dot_access_notation(var))
+            else:
+                cleaned_input_variables.append(var)
+
+        self.input_variables = cleaned_input_variables
 
 
 class FactoryPrompt:

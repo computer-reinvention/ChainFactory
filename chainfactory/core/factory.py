@@ -72,16 +72,25 @@ class ChainFactoryTool(BaseChainFactoryLink):
         input = source.get("in", {})
         self.input = FactoryInput(attributes=input)
 
-    def execute(self, *args, **kwargs) -> dict:
+    def execute(self, **kwargs) -> dict:
         if not self.fn:
             raise ValueError("ChainFactoryTool.fn is None. Cannot execute.")
 
         if self.input.input_variables:
-            input = {k: v for k, v in kwargs.items() if k in self.input.input_variables}
+            input = {k.rsplit(".")[-1]: v for k, v in kwargs.items()}
         else:
             input = kwargs
 
-        return self.fn(*args, **input)
+        res = self.fn(**input)
+        if not res:
+            return {**kwargs}
+
+        if isinstance(res, dict):
+            return {**kwargs, **res}
+
+        raise ValueError(
+            f"ChainFactoryTool.fn must return a dict or None. Got {type(res)}."
+        )
 
     @classmethod
     def from_file(cls):
