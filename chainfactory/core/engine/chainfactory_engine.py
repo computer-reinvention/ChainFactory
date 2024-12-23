@@ -279,6 +279,7 @@ class ChainFactoryEngine:
         chain: RunnableSerializable | None = current["chain"]
         link: ChainFactoryLink | ChainFactoryTool = current["link"]
         previous_link: ChainFactoryLink | ChainFactoryTool = previous["link"]
+        previous_chain_name: str = previous["name"]
         previous_output: dict = previous["output"]
         previous_link_type: Literal["sequential", "parallel"]
 
@@ -510,26 +511,34 @@ class ChainFactoryEngine:
         """
         runnables = {}
         for link in chainlinks:
-            match config.provider:
-                case "openai":
-                    llm = ChatOpenAI(
-                        temperature=config.temperature,
-                        model=config.model,
-                        model_kwargs=config.model_kwargs,
-                    )
-                case "anthropic":
-                    llm = ChatAnthropic(
-                        temperature=config.temperature,
-                        model_name=config.model,
-                        **config.model_kwargs,
-                    )
-                case "ollama":
-                    llm = ChatOllama(
-                        temperature=config.temperature,
-                        **config.model_kwargs,
-                    )
-                case _:
-                    raise ValueError(f"Invalid provider: {config.provider}")
+            try:
+                match config.provider:
+                    case "openai":
+                        llm = ChatOpenAI(
+                            temperature=config.temperature,
+                            model=config.model,
+                            model_kwargs=config.model_kwargs,
+                        )
+                    case "anthropic":
+                        llm = ChatAnthropic(
+                            temperature=config.temperature,
+                            model_name=config.model,
+                            **config.model_kwargs,
+                        )
+                    case "ollama":
+                        llm = ChatOllama(
+                            temperature=config.temperature,
+                            model=config.model,
+                            **config.model_kwargs,
+                        )
+                    case _:
+                        raise ValueError(
+                            f"Invalid provider: {config.provider}. Must be one of: openai, anthropic, ollama"
+                        )
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to initialize {config.provider} provider: {str(e)}"
+                ) from e
 
             if isinstance(link, ChainFactoryTool):
                 runnables[link._name] = {
