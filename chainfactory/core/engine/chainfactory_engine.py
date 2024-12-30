@@ -1,6 +1,5 @@
 import time
 import traceback
-import dataclasses
 from pprint import pprint
 from typing import Any, Literal
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -235,7 +234,7 @@ class ChainFactoryEngine:
     def _get_next_step_input(
         self,
         input_variables: list[str],
-        previous_output: dict,
+        previous_output: dict | Any,
         aliases: dict[str, str] | None = None,
     ):
         """
@@ -245,6 +244,10 @@ class ChainFactoryEngine:
         keys = []
         if not aliases:
             aliases = {}
+
+        if not isinstance(previous_output, dict):
+            previous_output = previous_output.dict()
+
         for var in input_variables:
             alias = aliases.get(var)
             if var in previous_output:
@@ -259,7 +262,6 @@ class ChainFactoryEngine:
             if not keys:
                 continue
 
-            breakpoint()
             if keys[0] in self.execution_trace.keys():
                 prev = self.execution_trace[keys[0]]
                 input[alias or var] = self._get_nested_value(prev, keys[1:])
@@ -279,7 +281,6 @@ class ChainFactoryEngine:
         chain: RunnableSerializable | None = current["chain"]
         link: ChainFactoryLink | ChainFactoryTool = current["link"]
         previous_link: ChainFactoryLink | ChainFactoryTool = previous["link"]
-        previous_chain_name: str = previous["name"]
         previous_output: dict = previous["output"]
         previous_link_type: Literal["sequential", "parallel"]
 
@@ -311,7 +312,8 @@ class ChainFactoryEngine:
                     input_variables, previous_output, aliases
                 )
 
-                return executor(input)
+                result = executor(input)
+                return result
             case "parallel":
                 assert previous_link._name in previous_output
                 previous_output = self.execution_trace[previous_link._name]
@@ -348,7 +350,7 @@ class ChainFactoryEngine:
                     f"Invalid link type: {previous_link._link_type} for chain {previous['name']}"
                 )
 
-    def proceed_yes_no(
+    def _proceed_yes_no(
         self,
         next_chain_name: str,
         is_tool: bool | None = False,
@@ -398,7 +400,7 @@ class ChainFactoryEngine:
             chain: RunnableSerializable | None = data["chain"]
             link: ChainFactoryLink | ChainFactoryTool = data["link"]
 
-            should_proceed = self.proceed_yes_no(
+            should_proceed = self._proceed_yes_no(
                 next_chain_name=name,
                 is_tool=isinstance(link, ChainFactoryTool),
             )
@@ -512,12 +514,24 @@ class ChainFactoryEngine:
         runnables = {}
         for link in chainlinks:
             try:
+                if isinstance(link, ChainFactoryTool):
+                    runnables[link._name] = {
+                        "chain": None,
+                        "link": link,
+                    }
+                    continue
+
                 match config.provider:
                     case "openai":
                         llm = ChatOpenAI(
                             temperature=config.temperature,
                             model=config.model,
-                            model_kwargs=config.model_kwargs,
+                            **config.model_kwargs,
+                        )
+                        model = (
+                            llm
+                            if link.output is None
+                            else llm.with_structured_output(link.output._type)
                         )
                     case "anthropic":
                         llm = ChatAnthropic(
@@ -525,12 +539,23 @@ class ChainFactoryEngine:
                             model_name=config.model,
                             **config.model_kwargs,
                         )
+                        model = (
+                            llm
+                            if link.output is None
+                            else llm.with_structured_output(link.output._type)
+                        )
                     case "ollama":
                         llm = ChatOllama(
                             temperature=config.temperature,
                             model=config.model,
                             **config.model_kwargs,
                         )
+
+                        if link.output is None:
+                            model = llm
+                        else:
+                            json_schema = link.output._type.model_json_schema()
+                            model = llm.with_structured_output(schema=json_schema)
                     case _:
                         raise ValueError(
                             f"Invalid provider: {config.provider}. Must be one of: openai, anthropic, ollama"
@@ -539,18 +564,6 @@ class ChainFactoryEngine:
                 raise ValueError(
                     f"Failed to initialize {config.provider} provider: {str(e)}"
                 ) from e
-
-            if isinstance(link, ChainFactoryTool):
-                runnables[link._name] = {
-                    "chain": None,
-                    "link": link,
-                }
-                continue
-
-            if link.output is None:
-                model = llm
-            else:
-                model = llm.with_structured_output(link.output._type)
 
             assert link.prompt
             assert link.prompt.template

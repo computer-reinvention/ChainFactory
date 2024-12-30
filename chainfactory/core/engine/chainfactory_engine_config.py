@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Callable, Literal
+from inspect import signature
+import inspect
+from typing import Any, Callable, Literal
 
 
 @dataclass
@@ -9,7 +11,7 @@ class ChainFactoryEngineConfig:
     """
 
     provider: Literal["openai", "anthropic", "ollama"] = "openai"
-    model: str = field(default="gpt-4")
+    model: str = field(default="gpt-4o")
     temperature: float = field(default=0.5)
     cache: bool = field(default=False)
     max_tokens: int = field(default=1024)
@@ -23,14 +25,14 @@ class ChainFactoryEngineConfig:
     def __post_init__(self):
         """Validate and set provider-specific defaults"""
         # Set provider-specific model defaults if not specified
-        if self.model == "gpt-4":  # Only change if it's the default
+        if self.model == "gpt-4o":  # Only change if it's the default
             match self.provider:
                 case "openai":
-                    self.model = "gpt-4"
+                    self.model = "gpt-4o"
                 case "anthropic":
-                    self.model = "claude-3-opus-20240229"
+                    self.model = "claude-3-5-sonnet-latest"
                 case "ollama":
-                    self.model = "llama2"
+                    self.model = "llama3.2"
 
         # Validate temperature
         if not 0 <= self.temperature <= 1:
@@ -44,16 +46,36 @@ class ChainFactoryEngineConfig:
         if self.max_parallel_chains < 1:
             raise ValueError("max_parallel_chains must be greater than 0")
 
+    def _validate_tool_function(self, fn: Any) -> None:
+        """Validate that the function is callable and returns a dict or None"""
+        if not callable(fn):
+            raise TypeError(f"Tool must be callable, got {type(fn)}")
+
+        # Get return annotation if it exists
+        return_type = signature(fn).return_annotation
+        if return_type is inspect.Signature.empty:
+            return_type = None
+        if return_type != Any and return_type != dict and return_type is not None:
+            raise TypeError(
+                f"Tool function {fn.__name__} must return dict or None, got {return_type}"
+            )
+
     def register_tool(self, fn: Callable) -> Callable:
         """
-        Register a function to be used as a tool. The function can have arbitrary arguments but should necessarily return a dictionary.
+        Register a function to be used as a tool. The function can have arbitrary arguments
+        but should necessarily return a dictionary or None.
         """
+        self._validate_tool_function(fn)
         self.tools[fn.__name__] = fn
         return fn
 
     def register_tools(self, fns: list[Callable[..., dict]]) -> None:
         """
-        Register a function to be used as a tool. The function can have arbitrary arguments but should necessarily return a dictionary.
+        Register multiple functions to be used as tools. Each function can have arbitrary arguments
+        but should necessarily return a dictionary or None.
         """
+        if not isinstance(fns, list):
+            raise TypeError("Expected a list of functions")
+
         for fn in fns:
             self.register_tool(fn)
