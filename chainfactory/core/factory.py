@@ -219,11 +219,21 @@ class ChainFactoryLink(BaseChainFactoryLink):
                     generated_prompt_template = engine(
                         purpose=purpose,
                         input_variables=[name] if convex else input_variables,
-                    ).prompt_template
+                    )
+
+                    if isinstance(generated_prompt_template, dict):
+                        generated_prompt_template = generated_prompt_template.get(
+                            "prompt_template", ""
+                        )
+                    else:
+                        generated_prompt_template = str(
+                            generated_prompt_template.prompt_template
+                        )
 
                     save_cache_file(
                         cachekey,
                         {
+                            "hash": cachekey,
                             "chainlink": name,
                             "purpose": purpose,
                             "input_variables": input_variables,
