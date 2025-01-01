@@ -1,4 +1,4 @@
-# ChainFactory: Structured LLM Inference with Easy Parallelism & Tool Calling (`chainfactory-py 0.0.16`)
+# ChainFactory: Structured LLM Inference with Easy Parallelism & Tool Calling (`chainfactory-py 0.0.18b`)
 
 ## Introduction
 ChainFactory is a declarative system for creating complex, multi-step LLM workflows using a simple YAML-like syntax. It allows you to connect multiple prompts in a chain, with outputs from one step feeding into inputs of subsequent steps. The most important feature is the reduced reliance on exact wording of the prompts and easy parallel execution wherever iterables are involved.
@@ -21,7 +21,7 @@ A chain-link is a single unit in your workflow / chain, defined using the `@chai
 @chainlink my-first-chain
 prompt: Write a story about {topic}
 out:
-    story: str
+  story: str
 ```
 ### Sequential vs Parallel Execution
 You can specify how chainlinks execute:
@@ -43,9 +43,9 @@ Instead of writing prompts manually, let ChainFactory generate them:
 @chainlink
 purpose: generate creative haiku topics
 in:
-    num: int
+  num: int
 out:
-    topics: list[str]
+  topics: list[str]
 ```
 The system will automatically create an optimal prompt based on the purpose and the input variales before executing the chain.
 
@@ -55,17 +55,17 @@ If a chainlink output is an iterable or something with an iterable attribute, th
 @chainlink topic_generator --
 purpose: generate creative haiku topics
 in:
-    num: int
+  num: int
 out:
-    topics: list[str]
+  topics: list[str]
 
 @chainlink haiku_generator || # parallel to generate multiple haikus
 purpose: generate a haiku
 in:
-    topics.element: str
+  topics.element: str
 out:
-    topic: str
-    haiku: str
+  topic: str
+  haiku: str
 ```
 
 ### 3. Chain Inheritance
@@ -93,87 +93,6 @@ out:
   haikus: list[Haiku]
 ```
 
-## Real-World Examples
-### 1. Haiku Generator and Reviewer
-```yaml
-@chainlink haiku-generator
-prompt: Write {num} haiku(s) about {topic} # for small inputs, prompt and purpose do not have much of a difference.
-out:
-    haikus: list[Haiku]
-
-@chainlink reviewer ||     # parallely review each haiku
-purpose: critically analyze each haiku
-```
-
-### 2. Checking if an Email Contains a Cancellation Request
-```yaml
-@chainlink cancellation_request
-purpose: return true if a given input email explicitly contains an event cancellation request
-in:
-	email_body: str
-out:
-  is_cancellation_request: bool
-```
-
-### 3. Classification and Action - Making Decisions and Acting on Them
-```yaml
-@chainlink classify
-purpose: to classify the input text into one of the provided labels
-in:
-	text: str
-	labels: list[str]
-def:
-  Classification:
-    label: str % Most relevant label for the input text.
-    text: str % The original input text, verbatim.
-    snippet: str % Snippet from input text that justifies the label.
-    confidence: Literal["extreme", "high", "medium", "low", "none"] % Your confidence level in the label's accuracy.
-out:
-	classification: Classification
-
-@tool confidence_filter --
-in:
-    classification: Classification
-
-@tool take_action --
-in:
-	classification: Classification
-out:
-	action: str
-    label: str
-
-@chainlink validate --
-prompt: Is (Action: {action}) in response to (Text: {text}) valid and reasonable?
-out:
-    is_valid: bool
-    reason: str
-```
-
-And here's the python counterpart for above `.fctr` file:
-```python
-from chainfactory import Engine, EngineConfig
-from some.module import TEXT, HANDLERS
-
-engine_config = EngineConfig()
-
-@engine_config.register_tool
-def confidence_filter(**kwargs): # gets called first
-    """
-    Raise an exception if the confidence level is low.
-    """
-    raise NotImplementedError
-
-@engine_config.register_tool  # brand new decorator
-def take_action(**kwargs):
-    """
-    Call a handler based on the classification by ChainFactory.
-    """
-    raise NotImplementedError
-
-if __name__ == "__main__":
-    classification_engine = Engine.from_file("examples/classify.fctr", config=engine_config)
-    classification_engine(text=TEXT, labels=list(HANDLERS.keys()))
-```
 
 ## Tips:
 1. **Use Purpose Statements**
@@ -186,15 +105,15 @@ def:
     field1: str
     field2: int?
 ```
-**Side Note**: In a .fctr file,  any type defined above the current chain-link is considered a global type.
+**Side Note**: In a .fctr file, any type defined above the current chain-link is available as a global type.
 3. **Chain Structure - General Workflows**
 - Start with sequential chains for initial processing.
 - Use parallel chains for whenever the order or execution is unimportant and iterables are involved.
 - End with sequential chains or a final tool call for summarization and getting a final text / object output.
 
-The above is the Split-Map-Reduce pattern. You can also use `ChainFactory` to just simplify prompt management and execution.
-4. **Documentation**
-Add field descriptions using `%`. This is not only for readability, but also for the LLM to understand the context of the field. It is basically a part of the prompting process.
+The above is the Split-Map-Reduce pattern for which `ChainFactory` is a very good fit.
+4. **Descriptions**
+Add field descriptions using `%`. This is not only for readability, but also for the LLM to understand the context of the field when producing a structured output. Essentially, the field descriptions are mini-prompts themselves.
 ```yaml
 out:
   review: str % A comprehensive analysis of the text
@@ -220,21 +139,22 @@ The system automatically caches generated prompts, and masks by hashing them and
 ### Tools
 Tools are callables that behave in a similar fashion to chain-links. They are used very similarly to chain-links but with a few key differences:
 - They are not defined in a `.fctr` file.
-- Tools do not have prompts, puposes, or out sections.
-- They are used to fetch data that subsequent chain-links need or to perform an action that uses data from the previous chain-links.
+- Tools do not have prompts, purposes, or out sections.
+- They can be used to fetch data that subsequent chain-links need or to perform an action that uses data from the previous chain-links.
 ```yaml
 @chainlink generator
 purpose: generate haiku
 in:
-	topic: str
+  topic: str
 out:
-	haiku: str % the complete haiku text. required.
+  haiku: str % the complete haiku text. required.
 
 @tool websearch 
 in:
-	topic: str # becomes a kwarg to the registered tool.
+  topic: str # becomes a kwarg to the registered tool.
 
 # the most minimal tool definition is a single line
+# the tool gets whatever the above chainlink returns as input
 @tool another_tool 
 ```
 *Note:* If the tools are not registered with the engine config, initialization of the engine will fail.
@@ -245,7 +165,97 @@ If the code causes some side effects and repeating the action is not safe, pleas
 
 Tools are registered using the `register_tools` method of the `ChainFactoryEngineConfig` class. The singular version of this, `register_tool`  can also be used as a decorator. **Warning**: loading a file with tools fails if the config already does not have a tool registered with the same name.
 
-## Configuring the ChainFactory Engine
+## Examples
+### 1. Haiku Generator and Reviewer
+```yaml
+@chainlink haiku-generator
+prompt: Write {num} haiku(s) about {topic} # for small inputs, prompt and purpose do not have much of a difference.
+out:
+  haikus: list[Haiku]
+
+@chainlink reviewer ||     # parallely review each haiku
+purpose: critically analyze each haiku
+```
+
+### 2. Checking if an Email Contains a Cancellation Request
+```yaml
+@chainlink cancellation_request
+purpose: check if the given email explicitly contains an event cancellation request
+in:
+  email_body: str
+out:
+  is_cancellation_request: bool
+```
+
+### 3. Example: Classification and Action - Making Decisions and Acting on Them
+```yaml
+@chainlink classify
+purpose: classify the input text into one of the provided labels
+in:
+  text: str
+  labels: list[str]
+def:
+  Classification:
+    label: str % most relevant label for input text
+    text: str % entirety of the input text, verbatim
+    snippet: str % snippet from input text that justifies the label
+    confidence: Literal["extreme", "high", "medium", "low", "none"] % confidence level in the label's accuracy
+out:
+  classification: Classification
+
+@tool display_classification
+in:
+  - classification.label # becomes kwarg called `label`
+  - classification.snippet # becomes kwarg called `snippet`
+  - classification.confidence as conf # becomes kwarg called `conf`
+
+@tool confidence_filter --
+
+@tool take_action --
+in:
+  classification: Classification
+
+@chainlink validate --
+prompt: Is (Action: {action}) in response to (Text: {text}) valid and reasonable?
+out:
+  is_valid: bool
+  reason: str
+```
+
+And here's the python counterpart for above `.fctr` file:
+```python
+from chainfactory import Engine, EngineConfig
+from some.module import TEXT, HANDLERS
+
+engine_config = EngineConfig()
+
+@engine_config.register_tool
+def display_classification(label: str, snippet: str, conf: str):
+    """
+    Raise an exception if the confidence level is low.
+    """
+    raise NotImplementedError
+
+@engine_config.register_tool
+def confidence_filter(**kwargs): # gets called first
+    """
+    Raise an exception if the confidence level is low.
+    """
+    raise NotImplementedError
+
+@engine_config.register_tool  # brand new decorator
+def take_action(**kwargs):
+    """
+    Call a handler based on the classification by ChainFactory.
+    """
+    raise NotImplementedError
+
+if __name__ == "__main__":
+    classification_engine = Engine.from_file("examples/classify.fctr", config=engine_config)
+    classification_engine(text=TEXT, labels=list(HANDLERS.keys()))
+```
+
+## Configuring the ChainFactoryEngine
 The `ChainFactoryEngine` or simply the `Engine` can be configured using the `ChainFactoryEngineConfig` (`EngineConfig`) class. You can control aspects such as the language model used, caching behavior, concurrency, and execution traces using the config class. Below are the configuration options available:
 
 - `model`: Specifies the model to use (default is `"gpt-4o"`).
@@ -283,7 +293,7 @@ config.register_tools([websearch]) # register a tool or multiple using the regis
 def another_tool(**kwargs):
     return kwargs
 
-engine = Engine.from_file("examples/haiku.fctr", config)
+engine = Engine.from_file("examples/haiku.fctr", config) # can be used as a callable
 ```
 
 ## Conclusion
@@ -292,6 +302,5 @@ ChainFactory makes it easy to create complex LLM workflows without writing code.
 Remember that this is just an overview - experiment with the examples to discover more possibilities!
 
 ## Getting Help
-- Check the examples folder for common patterns
-- Break complex chains into smaller, reusable pieces
+- Check the examples folder for common patterns.
 - Ping me directly on email: garkotipankaj [at] gmail.com
