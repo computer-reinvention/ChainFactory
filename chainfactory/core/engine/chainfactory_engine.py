@@ -63,10 +63,6 @@ class ChainFactoryEngine:
         elif len(args) == 1:
             chain_input = args[0]
         else:
-            if len(kwargs) == 0:
-                raise ValueError(
-                    "ChainFactoryEngine.__call__() requires at least one keyword argument or one positional argument."
-                )
             chain_input = kwargs
 
         trace = {}
