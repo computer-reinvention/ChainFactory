@@ -1,6 +1,5 @@
-# Classify And Act | Round II Motherfucker
 @chainlink classify
-purpose: classify the input text from the perspective of an executive assistant who manages an executive's calendaar
+purpose: classify the input text into one of the provided labels
 in:
 	text: str
 	labels: list[str]
