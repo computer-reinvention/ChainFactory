@@ -1,4 +1,4 @@
 # This internal chain generates a prompt template based on the purpose and input variables.
-prompt: "Create a full LLM prompt from a concise purpose statement and a list of input variables. Purpose: {purpose}. Input Variables: {input_variables}. Placeholders should be wrapped in single curly braces."
+prompt: "Create a full LLM prompt from a concise purpose statement and a list of input variables. Purpose: {purpose}. Input Variables: {input_variables}. Placeholders should be wrapped in single curly braces. Caution: If there are no input variables specified, the prompt should be without any input placeholders as well."
 out:
   prompt_template: str
