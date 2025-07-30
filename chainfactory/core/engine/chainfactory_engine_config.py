@@ -10,7 +10,7 @@ class ChainFactoryEngineConfig:
     Configuration for the ChainFactoryEngine.
     """
 
-    provider: Literal["openai", "anthropic", "ollama"] = "openai"
+    provider: Literal["openai", "anthropic", "ollama", "vertexai"] = "openai"
     model: str = field(default="gpt-4o")
     temperature: float = field(default=0.5)
     cache: bool = field(default=False)
@@ -25,14 +25,15 @@ class ChainFactoryEngineConfig:
     def __post_init__(self):
         """Validate and set provider-specific defaults"""
         # Set provider-specific model defaults if not specified
-        if self.model == "gpt-4o":  # Only change if it's the default
-            match self.provider:
-                case "openai":
-                    self.model = "gpt-4o"
-                case "anthropic":
-                    self.model = "claude-3-5-sonnet-latest"
-                case "ollama":
-                    self.model = "llama3.2"
+        match self.provider:
+            case "openai":
+                self.model = "gpt-4o"
+            case "anthropic":
+                self.model = "claude-3-5-sonnet-latest"
+            case "ollama":
+                self.model = "llama3.2"
+            case "vertexai":
+                self.model = "gemini-1.5-flash"
 
         # Validate temperature
         if not 0 <= self.temperature <= 1:

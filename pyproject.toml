@@ -13,13 +13,10 @@ python = "^3.10"
 pyyaml = "^6.0.1"
 tiktoken = "^0.7.0"
 cityhash = "^0.4.7"
-langchain = "^0.3.7"
-langchain-openai = "^0.2.8"
-langchain-anthropic = "^0.3.0"
-langchain-ollama = "^0.2.2"
-langchain-experimental = "^0.3.4"
+pydantic-ai = "^0.1.0"
 ipykernel = "^6.29.5"
 colorama = "^0.4.6"
+logfire = "^4.0.0"
 
 [build-system]
 requires = ["poetry-core"]

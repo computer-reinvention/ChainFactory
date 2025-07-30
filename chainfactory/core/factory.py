@@ -73,6 +73,9 @@ class ChainFactoryTool(BaseChainFactoryLink):
         self.input = FactoryInput(attributes=input)
 
     def execute(self, **kwargs) -> dict:
+        """
+        Execute the chain function with the given input.
+        """
         if not self.fn:
             raise ValueError("ChainFactoryTool.fn is None. Cannot execute.")
 
@@ -113,6 +116,7 @@ class ChainFactoryLink(BaseChainFactoryLink):
         definitions: Optional[FactoryDefinitions] = None,
         output: Optional[FactoryOutput] = None,
         prompt: Optional[FactoryPrompt] = None,
+        system_prompt: Optional[str] = None,
         mask: Optional[FactoryMask] = None,
         link_type: Literal["sequential", "parallel"] = "sequential",
     ):
@@ -122,6 +126,7 @@ class ChainFactoryLink(BaseChainFactoryLink):
 
         self.definitions: Optional[FactoryDefinitions] = definitions  # section `def`
         self.prompt: Optional[FactoryPrompt] = prompt  # section `prompt`
+        self.system_prompt = system_prompt
         self.mask: Optional[FactoryMask] = (
             mask  # section `mask` (only for convex chainlinks)
         )
@@ -152,6 +157,7 @@ class ChainFactoryLink(BaseChainFactoryLink):
         input = source.get("in")
         purpose = source.get("purpose")
         prompt = source.get("prompt")
+        system_prompt = source.get("system_prompt")
         defs = source.get("def")
         output = source.get("out")
         mask = source.get("mask")
@@ -201,6 +207,9 @@ class ChainFactoryLink(BaseChainFactoryLink):
                 assert internal_engine_cls
                 assert internal_engine_config
 
+                internal_engine_config.print_trace = True
+                internal_engine_config.internal_engine_config = True
+
                 with pkg_resources.open_text(
                     "chainfactory.chains", "generate_prompt_template.fctr"
                 ) as file:
@@ -226,9 +235,7 @@ class ChainFactoryLink(BaseChainFactoryLink):
                             "prompt_template", ""
                         )
                     else:
-                        generated_prompt_template = str(
-                            generated_prompt_template.prompt_template
-                        )
+                        generated_prompt_template = str(generated_prompt_template.output.prompt_template)
 
                     save_cache_file(
                         cachekey,
@@ -354,6 +361,7 @@ class ChainFactoryLink(BaseChainFactoryLink):
             definitions=factory_defs,
             mask=factory_mask,
             link_type=link_type,
+            system_prompt=system_prompt,
         )
 
     def execute(self, data: dict) -> dict:
@@ -454,6 +462,19 @@ class ChainFactory:
         with open(file_path, "r") as file:
             content = file.read()
 
+        if config:
+            for line in content.splitlines():
+                if line.strip().startswith("@provider"):
+                    provider_parts = [part.strip() for part in line.strip().split(" ")]
+                    if len(provider_parts) != 2:
+                        raise ValueError(
+                            f"Invalid @provider directive. Must be of the form `@provider [name]`."
+                        )
+
+                    config.provider = provider_parts[1]
+                    config.__post_init__()
+                    break
+
         return cls.from_str(
             content,
             config=config,
@@ -512,6 +533,7 @@ class ChainFactory:
             chainlink_directive = line.strip().startswith("@chainlink")
             extends_directive = line.strip().startswith("@extends")
             tool_directive = line.strip().startswith("@tool")
+            provider_directive = line.strip().startswith("@provider")
 
             if extends_directive:
                 if base_chain_path:
@@ -528,7 +550,22 @@ class ChainFactory:
                 base_chain_path = extends_parts[1]
                 continue
 
-            is_directive = tool_directive or chainlink_directive or extends_directive
+            if provider_directive:
+                if not config:
+                    raise ValueError(
+                        f"Error on line {i}. @provider directive requires a config to be provided."
+                    )
+
+                provider_parts = [part.strip() for part in line.strip().split(" ")]
+                if len(provider_parts) != 2:
+                    raise ValueError(
+                        f"Error on line {i}. Invalid @provider directive. Must be of the form `@provider [name]`."
+                    )
+
+                config.provider = provider_parts[1]
+                continue
+
+            is_directive = tool_directive or chainlink_directive or extends_directive or provider_directive
             type_str = None
             if is_directive:
                 if tool_directive:
@@ -537,6 +574,8 @@ class ChainFactory:
                     type_str = "@chainlink"
                 elif extends_directive:
                     type_str = "@extends"
+                elif provider_directive:
+                    type_str = "@provider"
 
             if not is_directive and current_part:
                 parts[current_part]["lines"].append(line)
