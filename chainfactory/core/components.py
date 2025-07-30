@@ -175,6 +175,18 @@ class FactoryPrompt:
             else:
                 self.input_variables.append(var)
 
+    def render(self, variables: dict[str, Any]) -> str:
+        """
+        Render the prompt template with the given variables.
+        """
+        assert self.template
+        rendered = self.template
+
+        for var, value in variables.items():
+            rendered = rendered.replace("{" + var + "}", str(value))
+
+        return rendered
+
     def _extract_input_variables(self, template: str) -> list[str]:
         """
         Extract input variables from the prompt template using regex.

@@ -4,11 +4,12 @@ from pprint import pprint
 from typing import Any, Literal
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from langchain.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
-from langchain_ollama import ChatOllama
-from langchain_core.runnables import RunnableSerializable
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIModel as OpenAI
+from pydantic_ai.models.anthropic import AnthropicModel as Anthropic
+from pydantic_ai.models.gemini import GeminiModel as VertexAI
+from pydantic_ai.models.gemini import GeminiModel as VertexAI
+
 from colorama import Back, Fore, Style
 
 from chainfactory.core.factory import (
@@ -17,6 +18,13 @@ from chainfactory.core.factory import (
     ChainFactoryTool,
 )
 from .chainfactory_engine_config import ChainFactoryEngineConfig
+
+DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant that executes user requests.
+- Each user request comes with a pre-defined output format.
+- You must strictly adhere to the output format and generate the output as requested.
+- You can use the provided tools to help you with the request.
+- You must not generate any additional information beyond the requested output format.
+"""
 
 
 class ChainFactoryEngine:
@@ -91,7 +99,7 @@ class ChainFactoryEngine:
         """
         Execute a parallel chain.
         """
-        chain: RunnableSerializable | None = current["chain"]
+        chain: Agent | None = current["chain"]
         link: ChainFactoryLink | ChainFactoryTool = current["link"]
         previous_output: dict = previous["output"]
 
@@ -197,16 +205,18 @@ class ChainFactoryEngine:
         with ThreadPoolExecutor(self.config.max_parallel_chains) as executor:
             futures = []
             results = []
-            for input in current_inputs:
+            for input_item in current_inputs:
                 if isinstance(link, ChainFactoryTool):
                     fn = lambda x: link.execute(**x)
-                    future = executor.submit(fn, input)
+                    future = executor.submit(fn, input_item)
                 else:
                     if not chain:
                         raise ValueError(
                             f"Chain cannot be None at this stage. Please report this issue."
                         )
-                    future = executor.submit(chain.invoke, input)
+                    assert link.prompt
+                    user_prompt = link.prompt.render(input_item)
+                    future = executor.submit(chain.run_sync, user_prompt)
 
                 futures.append(future)
 
@@ -274,7 +284,15 @@ class ChainFactoryEngine:
         """
         Execute a sequential chain.
         """
-        chain: RunnableSerializable | None = current["chain"]
+        print("=============== _execute_sequential_chain ==================")
+        print("Previous:")
+        print(previous)
+        print("-------")
+        print("Current:")
+        print(current)
+        print("===========================================================")
+
+        chain: Agent | None = current["chain"]
         link: ChainFactoryLink | ChainFactoryTool = current["link"]
         previous_link: ChainFactoryLink | ChainFactoryTool = previous["link"]
         previous_output: dict = previous["output"]
@@ -287,7 +305,7 @@ class ChainFactoryEngine:
 
         match previous_link_type:
             case "sequential":
-                input = {}
+                input_vars = {}
                 input_variables = []
                 executor = None
 
@@ -300,15 +318,24 @@ class ChainFactoryEngine:
                     assert link.prompt
                     input_variables = link.prompt.input_variables or []
                     aliases = {}
-                    executor = chain.invoke
+                    executor = chain.run_sync
                 else:
                     raise ValueError("Invalid link type.")
 
-                input = self._get_next_step_input(
+                input_vars = self._get_next_step_input(
                     input_variables, previous_output, aliases
                 )
 
-                result = executor(input)
+                print("=========== INPUT ===========")
+                print(input_vars)
+                print("=============================")
+                
+                if isinstance(link, ChainFactoryLink):
+                    assert link.prompt
+                    user_prompt = link.prompt.render(input_vars)
+                    result = executor(user_prompt)
+                else:
+                    result = executor(input_vars)
                 return result
             case "parallel":
                 assert previous_link._name in previous_output
@@ -340,7 +367,7 @@ class ChainFactoryEngine:
                     ]
                 }
 
-                return chain.invoke(input)
+                return chain(**input)
             case _:
                 raise ValueError(
                     f"Invalid link type: {previous_link._link_type} for chain {previous['name']}"
@@ -386,6 +413,10 @@ class ChainFactoryEngine:
         """
         Execute the chains, while piping the outputs to successive chains.
         """
+        print("============ _execute_chains ==============")
+        print(initial_input)
+        print("===========================================")
+
         previous_output = None
         previous_chain_name = None
         previous_chain = None
@@ -393,7 +424,7 @@ class ChainFactoryEngine:
 
         should_proceed = True
         for name, data in self.chains.items():
-            chain: RunnableSerializable | None = data["chain"]
+            chain: Agent | None = data["chain"]
             link: ChainFactoryLink | ChainFactoryTool = data["link"]
 
             should_proceed = self._proceed_yes_no(
@@ -453,7 +484,7 @@ class ChainFactoryEngine:
             output_dict = None
 
             if not isinstance(output, dict):
-                output_dict = output.dict()
+                output_dict = output.output.dict()
             else:
                 output_dict = output
 
@@ -502,72 +533,56 @@ class ChainFactoryEngine:
         chainlinks: list[ChainFactoryTool | ChainFactoryLink],
         config: ChainFactoryEngineConfig,
     ) -> dict[
-        str, dict[str, RunnableSerializable | ChainFactoryLink | ChainFactoryTool]
+        str, dict[str, Agent | ChainFactoryLink | ChainFactoryTool]
     ]:
         """
         Create a chain from the factory.
         """
         runnables = {}
         for link in chainlinks:
-            try:
-                if isinstance(link, ChainFactoryTool):
-                    runnables[link._name] = {
-                        "chain": None,
-                        "link": link,
-                    }
-                    continue
-
-                match config.provider:
-                    case "openai":
-                        llm = ChatOpenAI(
-                            temperature=config.temperature,
-                            model=config.model,
-                            **config.model_kwargs,
-                        )
-                        model = (
-                            llm
-                            if link.output is None
-                            else llm.with_structured_output(link.output._type)
-                        )
-                    case "anthropic":
-                        llm = ChatAnthropic(
-                            temperature=config.temperature,
-                            model_name=config.model,
-                            **config.model_kwargs,
-                        )
-                        model = (
-                            llm
-                            if link.output is None
-                            else llm.with_structured_output(link.output._type)
-                        )
-                    case "ollama":
-                        llm = ChatOllama(
-                            temperature=config.temperature,
-                            model=config.model,
-                            **config.model_kwargs,
-                        )
-
-                        if link.output is None:
-                            model = llm
-                        else:
-                            json_schema = link.output._type.model_json_schema()
-                            model = llm.with_structured_output(schema=json_schema)
-                    case _:
-                        raise ValueError(
-                            f"Invalid provider: {config.provider}. Must be one of: openai, anthropic, ollama"
-                        )
-            except Exception as e:
-                raise ValueError(
-                    f"Failed to initialize {config.provider} provider: {str(e)}"
-                ) from e
+            if isinstance(link, ChainFactoryTool):
+                runnables[link._name] = {
+                    "chain": None,
+                    "link": link,
+                }
+                continue
 
             assert link.prompt
             assert link.prompt.template
 
-            prompt = ChatPromptTemplate.from_template(link.prompt.template)
+            match config.provider:
+                case "openai":
+                    llm = OpenAI(
+                        model_name=config.model,
+                        **config.model_kwargs,
+                    )
+                case "anthropic":
+                    llm = Anthropic(
+                        model_name=config.model,
+                        **config.model_kwargs,
+                    )
+                case "ollama":
+                    from pydantic_ai.providers.openai import OpenAIProvider
+                    llm = OpenAI(
+                        model_name=config.model,
+                        provider=OpenAIProvider(base_url="http://localhost:11434/v1")
+                    )
+                case "vertexai":
+                    llm = VertexAI(
+                        model_name=config.model,
+                        **config.model_kwargs,
+                    )
+                case _:
+                    raise ValueError(
+                        f"Invalid provider: {config.provider}. Must be one of: openai, anthropic, ollama"
+                    )
 
             runnables[link._name] = {
-                "chain": prompt | model,
+                "chain": Agent(
+                    model=llm,
+                    system_prompt=link.system_prompt or DEFAULT_SYSTEM_PROMPT,
+                    output_type=link.output._type,
+                ),
                 "link": link,
             }
 
