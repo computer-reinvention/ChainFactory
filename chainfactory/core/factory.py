@@ -73,11 +73,9 @@ class ChainFactoryTool(BaseChainFactoryLink):
         self.input = FactoryInput(attributes=input)
 
     def execute(self, **kwargs) -> dict:
-        print("============ EXECUTE ============")
-        print(self._name, "execute method")
-        print(kwargs)
-        print("=================================")
-        
+        """
+        Execute the chain function with the given input.
+        """
         if not self.fn:
             raise ValueError("ChainFactoryTool.fn is None. Cannot execute.")
 
@@ -216,9 +214,6 @@ class ChainFactoryLink(BaseChainFactoryLink):
                     "chainfactory.chains", "generate_prompt_template.fctr"
                 ) as file:
                     file_content = file.read()
-                    print("============= FILE CONTENT ============")
-                    print(file_content)
-                    print("=======================================")
                     print(
                         f"[{name}]",
                         "Generating Prompt Template: ",
